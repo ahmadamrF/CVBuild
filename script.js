@@ -568,6 +568,39 @@ function applyDesignToPreview() {
   };
   dom.cvPreview.style.setProperty("--cv-accent", state.design.accentColor);
   dom.cvPreview.style.setProperty("--cv-font", fontMap[state.design.font] || fontMap.jakarta);
+
+  // Compute derived accent shades as plain rgb() values so that html2canvas
+  // (which does not support color-mix()) can render the CV correctly for PDF export.
+  // Each blendColors call replicates a color-mix(in srgb, accent W%, base) expression.
+  const accentRgb = hexToRgb(state.design.accentColor);
+  if (accentRgb) {
+    // color-mix(in srgb, accent 80%, #1b2b38) — cv-title text
+    dom.cvPreview.style.setProperty("--cv-title-color",   blendColors(accentRgb, { r: 27,  g: 43,  b: 56  }, 0.80));
+    // color-mix(in srgb, accent 72%, #2b3e4d) — section heading text
+    dom.cvPreview.style.setProperty("--cv-section-color", blendColors(accentRgb, { r: 43,  g: 62,  b: 77  }, 0.72));
+    // color-mix(in srgb, accent 12%, #ffffff) — skill chip background
+    dom.cvPreview.style.setProperty("--cv-skill-bg",      blendColors(accentRgb, { r: 255, g: 255, b: 255 }, 0.12));
+    // color-mix(in srgb, accent 22%, #d4e5f3) — skill chip border
+    dom.cvPreview.style.setProperty("--cv-skill-border",  blendColors(accentRgb, { r: 212, g: 229, b: 243 }, 0.22));
+    // color-mix(in srgb, accent 82%, #13354a) — skill chip text
+    dom.cvPreview.style.setProperty("--cv-skill-color",   blendColors(accentRgb, { r: 19,  g: 53,  b: 74  }, 0.82));
+  }
+}
+
+function hexToRgb(hex) {
+  // Accepts only 6-digit hex colors (e.g. "#0f5c90"), which is the format
+  // enforced by normalizeDesign() and the <input type="color"> element.
+  const result = /^#([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result
+    ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) }
+    : null;
+}
+
+function blendColors(c1, c2, w1) {
+  const r = Math.round(c1.r * w1 + c2.r * (1 - w1));
+  const g = Math.round(c1.g * w1 + c2.g * (1 - w1));
+  const b = Math.round(c1.b * w1 + c2.b * (1 - w1));
+  return `rgb(${r},${g},${b})`;
 }
 
 function renderPreviewSection(sectionKey) {
@@ -844,6 +877,9 @@ function saveState() {
 }
 
 function exportPdf() {
+  const btn = dom.exportPdfBtn;
+  btn.disabled = true;
+  setStatus("Generating PDF…");
   const options = {
     margin: [10, 10, 10, 10],
     filename: `${(state.fullName || "cv").trim().replace(/\s+/g, "_")}.pdf`,
@@ -851,7 +887,20 @@ function exportPdf() {
     html2canvas: { scale: 2, useCORS: true },
     jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
   };
-  html2pdf().set(options).from(dom.cvPreview).save();
+  html2pdf()
+    .set(options)
+    .from(dom.cvPreview)
+    .save()
+    .then(() => {
+      setStatus("PDF exported successfully.");
+    })
+    .catch((err) => {
+      console.error("PDF export error:", err);
+      setStatus("PDF export failed. Please try again.");
+    })
+    .finally(() => {
+      btn.disabled = false;
+    });
 }
 
 function exportJson() {
