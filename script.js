@@ -844,6 +844,9 @@ function saveState() {
 }
 
 function exportPdf() {
+  const btn = dom.exportPdfBtn;
+  btn.disabled = true;
+  setStatus("Generating PDF…");
   const options = {
     margin: [10, 10, 10, 10],
     filename: `${(state.fullName || "cv").trim().replace(/\s+/g, "_")}.pdf`,
@@ -851,7 +854,20 @@ function exportPdf() {
     html2canvas: { scale: 2, useCORS: true },
     jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
   };
-  html2pdf().set(options).from(dom.cvPreview).save();
+  html2pdf()
+    .set(options)
+    .from(dom.cvPreview)
+    .save()
+    .then(() => {
+      setStatus("PDF exported successfully.");
+    })
+    .catch((err) => {
+      console.error("PDF export error:", err);
+      setStatus("PDF export failed. Please try again.");
+    })
+    .finally(() => {
+      btn.disabled = false;
+    });
 }
 
 function exportJson() {
