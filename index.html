@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CV Builder</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="app-shell">
+    <aside class="editor-panel">
+      <header class="panel-header">
+        <div>
+          <h1>CV Builder</h1>
+          <p>Build your resume and preview it instantly.</p>
+        </div>
+        <div class="header-actions">
+          <button id="saveBtn" type="button">Save Draft</button>
+          <button id="loadBtn" type="button">Load Draft</button>
+          <button id="exportJsonBtn" type="button">Export JSON</button>
+          <button id="importJsonBtn" type="button">Import JSON</button>
+          <button id="shareLinkBtn" type="button">Copy Share Link</button>
+          <button id="exportPdfBtn" type="button" class="primary">Export PDF</button>
+        </div>
+      </header>
+
+      <p id="statusMessage" class="status-message" aria-live="polite"></p>
+
+      <input id="importJsonFile" type="file" accept="application/json" hidden>
+
+      <section class="design-controls">
+        <h2>Design Settings</h2>
+        <div class="design-grid">
+          <label>
+            Template
+            <select id="templateSelect">
+              <option value="modern">Modern</option>
+              <option value="classic">Classic</option>
+              <option value="minimal">Minimal</option>
+            </select>
+          </label>
+          <label>
+            Accent Color
+            <input id="accentColorInput" type="color" value="#0f5c90">
+          </label>
+          <label>
+            Body Font
+            <select id="fontSelect">
+              <option value="jakarta">Plus Jakarta Sans</option>
+              <option value="lato">Lato</option>
+              <option value="nunito">Nunito Sans</option>
+            </select>
+          </label>
+          <label class="ats-toggle">
+            <input id="atsModeToggle" type="checkbox">
+            ATS Mode
+          </label>
+        </div>
+      </section>
+
+      <div class="custom-section-creator">
+        <input id="customSectionTitleInput" type="text" placeholder="Custom section title (e.g., Projects)">
+        <button id="addCustomSectionBtn" type="button">Add Section</button>
+      </div>
+
+      <div id="sectionsContainer" class="sections-container">
+        <section class="editor-card" data-section="fullName">
+          <div class="card-header">
+            <h2>Full Name</h2>
+            <span class="drag-handle" title="Drag section">::</span>
+          </div>
+          <input id="fullNameInput" data-field="fullName" type="text" placeholder="e.g., Alex Johnson">
+        </section>
+
+        <section class="editor-card" data-section="jobTitle">
+          <div class="card-header">
+            <h2>Job Title</h2>
+            <span class="drag-handle" title="Drag section">::</span>
+          </div>
+          <input id="jobTitleInput" data-field="jobTitle" type="text" placeholder="e.g., Frontend Developer">
+        </section>
+
+        <section class="editor-card" data-section="summary">
+          <div class="card-header">
+            <h2>Summary</h2>
+            <span class="drag-handle" title="Drag section">::</span>
+          </div>
+          <div class="format-actions">
+            <button type="button" data-format-target="summaryInput" data-format-type="bold">Bold</button>
+            <button type="button" data-format-target="summaryInput" data-format-type="bullet">Bullet</button>
+          </div>
+          <textarea id="summaryInput" data-field="summary" rows="4" placeholder="Write a concise professional summary..."></textarea>
+        </section>
+
+        <section class="editor-card" data-section="experience">
+          <div class="card-header">
+            <h2>Experience</h2>
+            <span class="drag-handle" title="Drag section">::</span>
+          </div>
+          <div id="experienceEntries" class="repeatable-list"></div>
+          <button id="addExperienceBtn" type="button" class="add-btn">+ Add Experience</button>
+        </section>
+
+        <section class="editor-card" data-section="education">
+          <div class="card-header">
+            <h2>Education</h2>
+            <span class="drag-handle" title="Drag section">::</span>
+          </div>
+          <div id="educationEntries" class="repeatable-list"></div>
+          <button id="addEducationBtn" type="button" class="add-btn">+ Add Education</button>
+        </section>
+
+        <section class="editor-card" data-section="projects">
+          <div class="card-header">
+            <h2>Projects</h2>
+            <span class="drag-handle" title="Drag section">::</span>
+          </div>
+          <div id="projectEntries" class="repeatable-list"></div>
+          <button id="addProjectBtn" type="button" class="add-btn">+ Add Project</button>
+        </section>
+
+        <section class="editor-card" data-section="languages">
+          <div class="card-header">
+            <h2>Languages</h2>
+            <span class="drag-handle" title="Drag section">::</span>
+          </div>
+          <div id="languageEntries" class="repeatable-list"></div>
+          <button id="addLanguageBtn" type="button" class="add-btn">+ Add Language</button>
+        </section>
+
+        <section class="editor-card" data-section="skills">
+          <div class="card-header">
+            <h2>Skills</h2>
+            <span class="drag-handle" title="Drag section">::</span>
+          </div>
+          <div class="skill-input-row">
+            <input id="skillInput" type="text" placeholder="Type a skill and press Enter">
+            <button id="addSkillBtn" type="button">Add</button>
+          </div>
+          <ul id="skillsListEditor" class="skills-editor-list"></ul>
+        </section>
+      </div>
+    </aside>
+
+    <section class="preview-panel">
+      <header class="preview-header">
+        <h2>Live CV Preview</h2>
+      </header>
+      <div class="preview-scroll">
+        <article id="cvPreview" class="cv-paper" aria-label="CV preview"></article>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
