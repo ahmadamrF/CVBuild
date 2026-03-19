@@ -15,6 +15,12 @@
   --shadow-card: 0 6px 20px rgba(21, 42, 65, 0.08);
   --cv-accent: #0f5c90;
   --cv-font: "Plus Jakarta Sans", "Segoe UI", sans-serif;
+  /* Derived accent shades computed in JS for html2canvas compatibility */
+  --cv-title-color: rgb(17, 82, 126);
+  --cv-section-color: rgb(23, 84, 125);
+  --cv-skill-bg: rgb(226, 235, 242);
+  --cv-skill-border: rgb(169, 199, 221);
+  --cv-skill-color: rgb(16, 85, 131);
 }
 
 *,
@@ -379,7 +385,7 @@ textarea {
 
 .cv-title {
   margin: 0.35rem 0 0;
-  color: color-mix(in srgb, var(--cv-accent) 80%, #1b2b38);
+  color: var(--cv-title-color);
   font-size: 1.04rem;
   font-weight: 600;
 }
@@ -387,7 +393,7 @@ textarea {
 .cv-section-title {
   margin: 0 0 0.55rem;
   font-size: 0.88rem;
-  color: color-mix(in srgb, var(--cv-accent) 72%, #2b3e4d);
+  color: var(--cv-section-color);
   letter-spacing: 0.09em;
   text-transform: uppercase;
   border-bottom: 1px solid #e1e9ef;
@@ -435,12 +441,12 @@ textarea {
 }
 
 .cv-skill {
-  background: color-mix(in srgb, var(--cv-accent) 12%, #ffffff);
-  border: 1px solid color-mix(in srgb, var(--cv-accent) 22%, #d4e5f3);
+  background: var(--cv-skill-bg);
+  border: 1px solid var(--cv-skill-border);
   border-radius: 999px;
   padding: 0.35rem 0.62rem;
   font-size: 0.84rem;
-  color: color-mix(in srgb, var(--cv-accent) 82%, #13354a);
+  color: var(--cv-skill-color);
 }
 
 .cv-list {
@@ -515,7 +521,7 @@ textarea {
   letter-spacing: 0.03em;
 }
 
-.template-minimal .cv-paper {
+.cv-paper.template-minimal {
   box-shadow: none;
   border: 1px solid #dfe6ec;
 }
@@ -525,7 +531,7 @@ textarea {
   padding-bottom: 0;
 }
 
-.ats-mode .cv-paper {
+.cv-paper.ats-mode {
   box-shadow: none;
   border: 1px solid #d0d6dc;
   border-radius: 0;
