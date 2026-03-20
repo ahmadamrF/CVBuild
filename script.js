@@ -2,7 +2,7 @@
 const AI_ENHANCE_ENDPOINT = "/api/enhance";
 const COVER_LETTER_ENDPOINT = "/api/cover-letter";
 const CV_PARSE_ENDPOINT = "/api/parse-cv";
-const AI_DEV_DIRECT_MODE = true;
+const AI_DEV_DIRECT_MODE = false;
 const AI_DEV_GROQ_KEY = "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";
 const BUILTIN_SECTION_KEYS = [
   "fullName",
