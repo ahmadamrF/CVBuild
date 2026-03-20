@@ -1313,6 +1313,7 @@ function saveState() {
 }
 
 function exportPdf() {
+  const fileName = `${buildExportBaseName()}.pdf`;
   const options = {
     margin: [10, 10, 10, 10],
     filename: fileName,
@@ -1328,10 +1329,16 @@ function exportJson() {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = `${(state.fullName || "cv").trim().replace(/\s+/g, "_")}_data.json`;
+  anchor.download = `${buildExportBaseName()}_data.json`;
   anchor.click();
   URL.revokeObjectURL(url);
   setStatus("JSON exported.");
+}
+
+function buildExportBaseName() {
+  const raw = String(state.fullName || "cv").trim().replace(/\s+/g, "_");
+  const safe = raw.replace(/[^\w.-]/g, "");
+  return safe || "cv";
 }
 
 function importJsonFile(event) {
