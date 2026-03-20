@@ -1,8 +1,9 @@
-﻿export async function onRequestPost(context) {
+export async function onRequestPost(context) {
   const { request, env } = context;
-  const apiKey = env.GROQ_API_KEY || "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";
+  const fallbackApiKey = "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";
+  const apiKey = env.GROQ_API_KEY || fallbackApiKey;
 
-  if (!apiKey || apiKey === "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") {
+  if (!apiKey) {
     return json(
       { error: "Missing GROQ_API_KEY environment variable or fallback key." },
       { status: 500 }
@@ -86,3 +87,4 @@ function json(payload, init = {}) {
     }
   });
 }
+
