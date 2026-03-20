@@ -38,6 +38,10 @@ body {
     linear-gradient(135deg, #eef3f8 0%, #e4edf5 100%);
 }
 
+body.modal-open {
+  overflow: hidden;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: minmax(320px, 40%) minmax(0, 60%);
@@ -74,6 +78,11 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+.pdf-export-mode-select {
+  min-width: 170px;
+  background: #fff;
 }
 
 button {
@@ -183,6 +192,27 @@ button.primary:hover {
   padding: 0.35rem 0.55rem;
 }
 
+.ai-field-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.ai-enhance-btn {
+  align-self: flex-start;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 8px;
+  border-color: #c5d6e5;
+  background: #f2f7fc;
+}
+
+.ai-enhance-btn:disabled {
+  opacity: 0.7;
+  cursor: wait;
+  transform: none;
+}
+
 .editor-card {
   background: var(--card-bg);
   border: 1px solid var(--line);
@@ -212,7 +242,8 @@ button.primary:hover {
 }
 
 input,
-textarea {
+textarea,
+select {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -224,7 +255,8 @@ textarea {
 }
 
 input:focus,
-textarea:focus {
+textarea:focus,
+select:focus {
   outline: none;
   border-color: #8eb8d8;
   box-shadow: 0 0 0 3px rgba(15, 92, 144, 0.12);
@@ -276,6 +308,11 @@ textarea {
   font-size: 0.8rem;
 }
 
+.section-remove-btn {
+  margin-left: auto;
+  margin-right: 0.45rem;
+}
+
 .field-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -298,6 +335,10 @@ textarea {
 }
 
 .skill-input-row input {
+  flex: 1;
+}
+
+.skill-input-row .ai-field-wrap {
   flex: 1;
 }
 
@@ -503,6 +544,12 @@ textarea {
   text-decoration: underline;
 }
 
+.cv-social-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
 .cv-placeholder {
   color: #8a99a7;
   font-style: italic;
@@ -510,6 +557,123 @@ textarea {
 
 .drag-ghost {
   opacity: 0.5;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(14, 24, 36, 0.46);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  padding: 1rem;
+}
+
+.modal-overlay[hidden] {
+  display: none;
+}
+
+.modal-card {
+  width: min(760px, 100%);
+  max-height: 92vh;
+  overflow: auto;
+  background: #fff;
+  border: 1px solid #d6e2ec;
+  border-radius: 14px;
+  box-shadow: 0 20px 45px rgba(16, 31, 46, 0.22);
+  padding: 1rem;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.45rem;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.modal-close-btn {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-note {
+  margin: 0 0 0.65rem;
+  color: #506273;
+  font-size: 0.9rem;
+}
+
+.modal-label {
+  display: block;
+  font-size: 0.86rem;
+  color: #3d5365;
+  margin-bottom: 0.35rem;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.7rem 0;
+}
+
+.toast-stack {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  width: min(360px, calc(100vw - 2rem));
+  pointer-events: none;
+}
+
+.toast {
+  border-radius: 10px;
+  padding: 0.75rem 0.85rem;
+  box-shadow: 0 12px 26px rgba(18, 30, 44, 0.18);
+  border: 1px solid transparent;
+  color: #1f2b38;
+  background: #f7fbff;
+  font-size: 0.88rem;
+  line-height: 1.35;
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.toast-success {
+  background: #ebfaf1;
+  border-color: #b8e8c8;
+  color: #1f6c3e;
+}
+
+.toast-error {
+  background: #fff2f2;
+  border-color: #f3c5c5;
+  color: #9f3131;
+}
+
+.toast-info {
+  background: #eef6ff;
+  border-color: #c4daef;
+  color: #1f4f78;
 }
 
 .template-classic .cv-name {
@@ -535,6 +699,12 @@ textarea {
   box-shadow: none;
   border: 1px solid #d0d6dc;
   border-radius: 0;
+}
+
+.cv-paper.pdf-export-mode {
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
 }
 
 .ats-mode .cv-name,
@@ -589,5 +759,11 @@ textarea {
 
   .cv-paper {
     padding: 1.2rem;
+  }
+
+  .toast-stack {
+    top: 0.75rem;
+    right: 0.75rem;
+    width: calc(100vw - 1.5rem);
   }
 }
