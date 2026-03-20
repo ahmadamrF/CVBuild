@@ -1312,16 +1312,29 @@ function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
-function exportPdf() {
-  const fileName = `${buildExportBaseName()}.pdf`;
+async function exportPdf() {
+  const mode = dom.pdfExportModeSelect?.value === "one-page" ? "one-page" : "normal";
+  const isOnePage = mode === "one-page";
+  const fileName = `${buildExportBaseName()}${isOnePage ? "_one_page" : ""}.pdf`;
   const options = {
-    margin: [10, 10, 10, 10],
+    margin: isOnePage ? [4, 4, 4, 4] : [10, 10, 10, 10],
     filename: fileName,
     image: { type: "jpeg", quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true },
-    jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
+    html2canvas: { scale: isOnePage ? 1.7 : 2, useCORS: true },
+    jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+    pagebreak: { mode: ["avoid-all", "css", "legacy"] }
   };
-  html2pdf().set(options).from(dom.cvPreview).save();
+
+  dom.cvPreview.classList.add("pdf-export-mode");
+  dom.cvPreview.classList.toggle("pdf-export-one-page", isOnePage);
+
+  try {
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    await html2pdf().set(options).from(dom.cvPreview).save();
+    setStatus(isOnePage ? "One-page PDF exported." : "PDF exported.");
+  } finally {
+    dom.cvPreview.classList.remove("pdf-export-mode", "pdf-export-one-page");
+  }
 }
 
 function exportJson() {
