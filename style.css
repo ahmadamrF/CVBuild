@@ -627,6 +627,40 @@ textarea {
   margin: 0.7rem 0;
 }
 
+.ai-create-modal-card {
+  width: min(760px, 100%);
+}
+
+.ai-create-progress-wrap {
+  margin-bottom: 0.7rem;
+}
+
+.ai-create-progress-text {
+  font-size: 0.83rem;
+  color: #466178;
+  margin-bottom: 0.3rem;
+}
+
+.ai-create-progress-bar {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: #e3ecf4;
+  overflow: hidden;
+}
+
+.ai-create-progress-bar > span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #0f5c90 0%, #1a8a7c 100%);
+  transition: width 180ms ease;
+}
+
+.ai-create-actions {
+  justify-content: flex-end;
+}
+
 .toast-stack {
   position: fixed;
   top: 1rem;
@@ -693,6 +727,94 @@ textarea {
 .template-minimal .cv-section-title {
   border-bottom: 0;
   padding-bottom: 0;
+}
+
+.cv-paper.template-executive {
+  border-radius: 0;
+  border: 1px solid #d5dce2;
+  box-shadow: 0 16px 30px rgba(27, 36, 44, 0.08);
+}
+
+.template-executive .cv-section:first-child {
+  margin: -2rem -2.2rem 1.2rem;
+  padding: 1.35rem 2.2rem 1rem;
+  background: linear-gradient(135deg, #1f2f3d 0%, #273948 100%);
+}
+
+.template-executive .cv-name {
+  color: #f8fbff;
+  font-family: "Source Serif 4", serif;
+  letter-spacing: 0;
+}
+
+.template-executive .cv-title {
+  color: #d6e2ee;
+}
+
+.template-executive .cv-section-title {
+  border-bottom: 2px solid #d8e0e8;
+  font-size: 0.8rem;
+  letter-spacing: 0.16em;
+}
+
+.template-executive .cv-entry {
+  border-left: 2px solid var(--cv-skill-border);
+  padding-left: 0.75rem;
+}
+
+.template-executive .cv-link {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.cv-paper.template-creative {
+  border: 1px solid #d3e3ed;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at right top, rgba(30, 102, 156, 0.07), transparent 38%),
+    radial-gradient(circle at left bottom, rgba(12, 142, 121, 0.08), transparent 42%),
+    #ffffff;
+}
+
+.template-creative .cv-name {
+  font-size: 2.25rem;
+  font-weight: 800;
+}
+
+.template-creative .cv-title {
+  font-size: 1.03rem;
+}
+
+.template-creative .cv-section-title {
+  border-bottom: 0;
+  position: relative;
+  padding-bottom: 0.45rem;
+}
+
+.template-creative .cv-section-title::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 58px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--cv-accent);
+}
+
+.template-creative .cv-skills {
+  gap: 0.55rem;
+}
+
+.template-creative .cv-skill {
+  border-radius: 12px;
+  font-weight: 700;
+}
+
+.template-creative .cv-social-links {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.9rem;
 }
 
 .cv-paper.ats-mode {

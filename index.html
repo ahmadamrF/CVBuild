@@ -18,6 +18,7 @@
           <button id="saveBtn" type="button">Save Draft</button>
           <button id="loadBtn" type="button">Load Draft</button>
           <button id="importExistingCvBtn" type="button">Import Existing CV</button>
+          <button id="aiCreateCvBtn" type="button">Create with AI</button>
           <button id="exportJsonBtn" type="button">Export JSON</button>
           <button id="importJsonBtn" type="button">Import JSON</button>
           <button id="shareLinkBtn" type="button">Copy Share Link</button>
@@ -44,6 +45,8 @@
               <option value="modern">Modern</option>
               <option value="classic">Classic</option>
               <option value="minimal">Minimal</option>
+              <option value="executive">Executive</option>
+              <option value="creative">Creative</option>
             </select>
           </label>
           <label>
@@ -185,6 +188,30 @@
       </div>
       <label class="modal-label" for="coverLetterOutput">Generated Cover Letter</label>
       <textarea id="coverLetterOutput" rows="12" placeholder="Your generated cover letter will appear here..."></textarea>
+    </div>
+  </div>
+
+  <div id="aiCreateModal" class="modal-overlay" hidden>
+    <div class="modal-card ai-create-modal-card" role="dialog" aria-modal="true" aria-labelledby="aiCreateTitle">
+      <div class="modal-header">
+        <h2 id="aiCreateTitle">Create CV from Scratch (AI)</h2>
+        <button id="closeAiCreateModalBtn" type="button" class="modal-close-btn" aria-label="Close">x</button>
+      </div>
+      <p class="modal-note">Answer a few focused questions, then we will generate a complete editable CV draft.</p>
+      <div class="ai-create-progress-wrap">
+        <div id="aiCreateProgressText" class="ai-create-progress-text"></div>
+        <div class="ai-create-progress-bar">
+          <span id="aiCreateProgressFill"></span>
+        </div>
+      </div>
+      <label class="modal-label" id="aiCreateQuestionLabel" for="aiCreateAnswerInput">Question</label>
+      <textarea id="aiCreateAnswerInput" rows="5" placeholder="Type your answer..."></textarea>
+      <select id="aiCreateAnswerSelect" hidden></select>
+      <div class="modal-actions ai-create-actions">
+        <button id="aiCreateBackBtn" type="button">Back</button>
+        <button id="aiCreateNextBtn" type="button">Next</button>
+        <button id="aiCreateGenerateBtn" type="button" class="primary">Generate CV</button>
+      </div>
     </div>
   </div>
 

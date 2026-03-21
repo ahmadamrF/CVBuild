@@ -2,7 +2,8 @@
 const AI_ENHANCE_ENDPOINT = "/api/enhance";
 const COVER_LETTER_ENDPOINT = "/api/cover-letter";
 const CV_PARSE_ENDPOINT = "/api/parse-cv";
-const AI_DEV_DIRECT_MODE = false;
+const AI_CREATE_ENDPOINT = "/api/create-from-scratch";
+const AI_DEV_DIRECT_MODE = true;
 const AI_DEV_GROQ_KEY = "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";
 const BUILTIN_SECTION_KEYS = [
   "fullName",
@@ -33,6 +34,8 @@ let educationSortableInstance;
 let projectsSortableInstance;
 let languagesSortableInstance;
 let toastHost;
+let aiCreateStepIndex = 0;
+let aiCreateAnswers = {};
 
 const dom = {
   fullNameInput: document.getElementById("fullNameInput"),
@@ -61,6 +64,7 @@ const dom = {
   saveBtn: document.getElementById("saveBtn"),
   loadBtn: document.getElementById("loadBtn"),
   importExistingCvBtn: document.getElementById("importExistingCvBtn"),
+  aiCreateCvBtn: document.getElementById("aiCreateCvBtn"),
   exportJsonBtn: document.getElementById("exportJsonBtn"),
   importJsonBtn: document.getElementById("importJsonBtn"),
   importJsonFile: document.getElementById("importJsonFile"),
@@ -76,7 +80,17 @@ const dom = {
   jobDescriptionInput: document.getElementById("jobDescriptionInput"),
   generateCoverLetterBtn: document.getElementById("generateCoverLetterBtn"),
   copyCoverLetterBtn: document.getElementById("copyCoverLetterBtn"),
-  coverLetterOutput: document.getElementById("coverLetterOutput")
+  coverLetterOutput: document.getElementById("coverLetterOutput"),
+  aiCreateModal: document.getElementById("aiCreateModal"),
+  closeAiCreateModalBtn: document.getElementById("closeAiCreateModalBtn"),
+  aiCreateQuestionLabel: document.getElementById("aiCreateQuestionLabel"),
+  aiCreateProgressText: document.getElementById("aiCreateProgressText"),
+  aiCreateProgressFill: document.getElementById("aiCreateProgressFill"),
+  aiCreateAnswerInput: document.getElementById("aiCreateAnswerInput"),
+  aiCreateAnswerSelect: document.getElementById("aiCreateAnswerSelect"),
+  aiCreateBackBtn: document.getElementById("aiCreateBackBtn"),
+  aiCreateNextBtn: document.getElementById("aiCreateNextBtn"),
+  aiCreateGenerateBtn: document.getElementById("aiCreateGenerateBtn")
 };
 
 init();
@@ -218,6 +232,7 @@ function bindEvents() {
   });
 
   dom.importExistingCvBtn.addEventListener("click", () => dom.existingCvFileInput.click());
+  dom.aiCreateCvBtn.addEventListener("click", openAiCreateModal);
   dom.existingCvFileInput.addEventListener("change", importExistingCvFile);
   dom.exportJsonBtn.addEventListener("click", exportJson);
   dom.importJsonBtn.addEventListener("click", () => dom.importJsonFile.click());
@@ -233,8 +248,22 @@ function bindEvents() {
   dom.coverLetterModal.addEventListener("click", (event) => {
     if (event.target === dom.coverLetterModal) closeCoverLetterModal();
   });
+  dom.closeAiCreateModalBtn.addEventListener("click", closeAiCreateModal);
+  dom.aiCreateModal.addEventListener("click", (event) => {
+    if (event.target === dom.aiCreateModal) closeAiCreateModal();
+  });
+  dom.aiCreateBackBtn.addEventListener("click", goToPreviousAiCreateQuestion);
+  dom.aiCreateNextBtn.addEventListener("click", goToNextAiCreateQuestion);
+  dom.aiCreateGenerateBtn.addEventListener("click", generateCvFromAiQuestions);
+  dom.aiCreateAnswerInput.addEventListener("input", storeCurrentAiCreateAnswer);
+  dom.aiCreateAnswerSelect.addEventListener("change", storeCurrentAiCreateAnswer);
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !dom.coverLetterModal.hidden) closeCoverLetterModal();
+    if (event.key !== "Escape") return;
+    if (!dom.aiCreateModal.hidden) {
+      closeAiCreateModal();
+      return;
+    }
+    if (!dom.coverLetterModal.hidden) closeCoverLetterModal();
   });
 }
 
@@ -881,6 +910,238 @@ async function copyCoverLetterOutput() {
   }
 }
 
+function getAiCreateQuestions() {
+  return [
+    {
+      id: "fullName",
+      label: "What is your full name?",
+      type: "text",
+      placeholder: "e.g., Ahmad Samir",
+      required: true
+    },
+    {
+      id: "targetRole",
+      label: "What role are you targeting with this CV?",
+      type: "text",
+      placeholder: "e.g., Frontend Developer / Product Designer",
+      required: true
+    },
+    {
+      id: "locationWorkMode",
+      label: "What location and work preference should we mention?",
+      type: "text",
+      placeholder: "e.g., Cairo, Egypt | Open to remote/hybrid/on-site"
+    },
+    {
+      id: "yearsExperience",
+      label: "How many years of experience do you have, and in which domains?",
+      type: "text",
+      placeholder: "e.g., 4 years in web apps, dashboards, and e-commerce"
+    },
+    {
+      id: "topSkills",
+      label: "List your top technical and soft skills.",
+      type: "text",
+      placeholder: "e.g., React, TypeScript, API integration, problem solving, teamwork"
+    },
+    {
+      id: "experienceHighlights",
+      label: "Share your best work achievements (numbers if possible).",
+      type: "textarea",
+      placeholder: "e.g., Improved load speed by 35%, shipped design system used by 3 teams"
+    },
+    {
+      id: "education",
+      label: "What is your education background?",
+      type: "text",
+      placeholder: "Degree, school, graduation year, honors"
+    },
+    {
+      id: "projects",
+      label: "Mention 1-3 important projects (name, stack, impact).",
+      type: "textarea",
+      placeholder: "Project name | stack | what it achieved"
+    },
+    {
+      id: "languages",
+      label: "Which languages do you speak and at what levels?",
+      type: "text",
+      placeholder: "e.g., Arabic (Native), English (C1)"
+    },
+    {
+      id: "links",
+      label: "Share useful links (LinkedIn, GitHub, portfolio).",
+      type: "text",
+      placeholder: "URLs separated by commas"
+    },
+    {
+      id: "tone",
+      label: "Which tone should the CV use?",
+      type: "select",
+      required: true,
+      options: [
+        { value: "professional", label: "Professional and concise" },
+        { value: "impact", label: "Impact-driven and results-focused" },
+        { value: "balanced", label: "Balanced technical and human tone" }
+      ]
+    },
+    {
+      id: "templatePreference",
+      label: "Which template look do you prefer?",
+      type: "select",
+      required: true,
+      options: [
+        { value: "modern", label: "Modern" },
+        { value: "executive", label: "Executive" },
+        { value: "creative", label: "Creative" },
+        { value: "classic", label: "Classic" },
+        { value: "minimal", label: "Minimal" }
+      ]
+    }
+  ];
+}
+
+function openAiCreateModal() {
+  aiCreateAnswers = buildDefaultAiCreateAnswers();
+  aiCreateStepIndex = 0;
+  renderAiCreateStep();
+  dom.aiCreateModal.hidden = false;
+  document.body.classList.add("modal-open");
+}
+
+function closeAiCreateModal() {
+  dom.aiCreateModal.hidden = true;
+  document.body.classList.remove("modal-open");
+}
+
+function buildDefaultAiCreateAnswers() {
+  return {
+    fullName: String(state.fullName || "").trim(),
+    targetRole: String(state.jobTitle || "").trim(),
+    templatePreference: state.design?.template || "modern",
+    tone: "professional",
+    links: [state.linkedin, state.github].filter(Boolean).join(", ")
+  };
+}
+
+function renderAiCreateStep() {
+  const questions = getAiCreateQuestions();
+  const question = questions[aiCreateStepIndex];
+  if (!question) return;
+
+  const total = questions.length;
+  dom.aiCreateQuestionLabel.textContent = question.label;
+  dom.aiCreateProgressText.textContent = `Question ${aiCreateStepIndex + 1} of ${total}`;
+  dom.aiCreateProgressFill.style.width = `${((aiCreateStepIndex + 1) / total) * 100}%`;
+
+  const currentValue = String(aiCreateAnswers[question.id] || "");
+  const isSelect = question.type === "select";
+  dom.aiCreateAnswerInput.hidden = isSelect;
+  dom.aiCreateAnswerSelect.hidden = !isSelect;
+
+  if (isSelect) {
+    const options = Array.isArray(question.options) ? question.options : [];
+    dom.aiCreateAnswerSelect.innerHTML = options.map((option) => (
+      `<option value="${escapeAttr(option.value)}">${escapeHtml(option.label)}</option>`
+    )).join("");
+    const fallbackValue = options[0]?.value || "";
+    dom.aiCreateAnswerSelect.value = currentValue || fallbackValue;
+    aiCreateAnswers[question.id] = dom.aiCreateAnswerSelect.value;
+    dom.aiCreateAnswerSelect.focus();
+  } else {
+    dom.aiCreateAnswerInput.value = currentValue;
+    dom.aiCreateAnswerInput.placeholder = question.placeholder || "Type your answer...";
+    dom.aiCreateAnswerInput.rows = question.type === "textarea" ? 6 : 4;
+    dom.aiCreateAnswerInput.focus();
+  }
+
+  dom.aiCreateBackBtn.disabled = aiCreateStepIndex === 0;
+  dom.aiCreateNextBtn.hidden = aiCreateStepIndex === total - 1;
+  dom.aiCreateGenerateBtn.hidden = aiCreateStepIndex !== total - 1;
+}
+
+function storeCurrentAiCreateAnswer() {
+  const question = getAiCreateQuestions()[aiCreateStepIndex];
+  if (!question) return;
+  const value = question.type === "select"
+    ? dom.aiCreateAnswerSelect.value
+    : dom.aiCreateAnswerInput.value;
+  aiCreateAnswers[question.id] = String(value || "").trim();
+}
+
+function validateCurrentAiCreateAnswer() {
+  const question = getAiCreateQuestions()[aiCreateStepIndex];
+  if (!question) return false;
+  storeCurrentAiCreateAnswer();
+  if (!question.required) return true;
+  if (String(aiCreateAnswers[question.id] || "").trim()) return true;
+  showToast("Please answer this required question before continuing.", "info");
+  return false;
+}
+
+function goToNextAiCreateQuestion() {
+  if (!validateCurrentAiCreateAnswer()) return;
+  const total = getAiCreateQuestions().length;
+  aiCreateStepIndex = Math.min(aiCreateStepIndex + 1, total - 1);
+  renderAiCreateStep();
+}
+
+function goToPreviousAiCreateQuestion() {
+  storeCurrentAiCreateAnswer();
+  aiCreateStepIndex = Math.max(aiCreateStepIndex - 1, 0);
+  renderAiCreateStep();
+}
+
+async function generateCvFromAiQuestions() {
+  if (!validateCurrentAiCreateAnswer()) return;
+
+  const originalLabel = dom.aiCreateGenerateBtn.textContent;
+  dom.aiCreateGenerateBtn.disabled = true;
+  dom.aiCreateBackBtn.disabled = true;
+  dom.aiCreateNextBtn.disabled = true;
+  dom.aiCreateAnswerInput.disabled = true;
+  dom.aiCreateAnswerSelect.disabled = true;
+  dom.aiCreateGenerateBtn.textContent = "Generating...";
+  showToast("Creating your CV draft with AI...", "info", 1500);
+  setStatus("Generating CV from your answers...");
+
+  try {
+    const payload = {
+      answers: { ...aiCreateAnswers },
+      language: document.documentElement.lang || "en"
+    };
+    const result = AI_DEV_DIRECT_MODE
+      ? await requestCreateFromScratchDirect(payload)
+      : await requestCreateFromScratchViaServer(payload);
+    const parsedCv = result?.cv && typeof result.cv === "object" ? result.cv : result;
+    applyParsedCvData(parsedCv);
+    applyAiGeneratedDesign(result?.design, payload.answers.templatePreference);
+    saveState();
+    refreshUIFromState("AI CV draft created. Review and adjust any details.");
+    closeAiCreateModal();
+    showToast("CV draft generated successfully.", "success");
+  } catch (error) {
+    const errorMessage = error.message || "Unknown error.";
+    setStatus(`AI CV generation failed: ${errorMessage}`);
+    showToast(`AI CV generation failed: ${errorMessage}`, "error", 5000);
+  } finally {
+    dom.aiCreateGenerateBtn.disabled = false;
+    dom.aiCreateBackBtn.disabled = false;
+    dom.aiCreateNextBtn.disabled = false;
+    dom.aiCreateAnswerInput.disabled = false;
+    dom.aiCreateAnswerSelect.disabled = false;
+    dom.aiCreateGenerateBtn.textContent = originalLabel;
+  }
+}
+
+function applyAiGeneratedDesign(design, fallbackTemplate) {
+  const allowedTemplates = ["modern", "classic", "minimal", "executive", "creative"];
+  const preferredTemplate = String(design?.template || fallbackTemplate || "").toLowerCase();
+  if (allowedTemplates.includes(preferredTemplate)) {
+    state.design.template = preferredTemplate;
+  }
+}
+
 function buildCvContextForAi() {
   return {
     fullName: state.fullName,
@@ -906,6 +1167,66 @@ async function requestCoverLetterViaServer(payload) {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || "Request failed.");
   return String(data.text || "").trim();
+}
+
+async function requestCreateFromScratchViaServer(payload) {
+  const response = await fetch(AI_CREATE_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "Request failed.");
+  return data;
+}
+
+async function requestCreateFromScratchDirect(payload) {
+  if (!AI_DEV_GROQ_KEY || AI_DEV_GROQ_KEY === "REPLACE_WITH_YOUR_GROQ_API_KEY") {
+    throw new Error("Set AI_DEV_GROQ_KEY in script.js for direct mode.");
+  }
+
+  const systemPrompt = [
+    "You create a complete, truthful CV JSON from questionnaire answers.",
+    "Do not invent employers, degrees, dates, links, or certifications that the user did not imply.",
+    "You may improve wording and structure to professional quality.",
+    "Return strict JSON only (no markdown).",
+    "Schema:",
+    "{",
+    "\"cv\": {",
+    "\"fullName\": string, \"jobTitle\": string, \"linkedin\": string, \"github\": string, \"summary\": string,",
+    "\"skills\": string[],",
+    "\"languages\": [{\"name\": string, \"level\": \"native\"|\"c2\"|\"c1\"|\"b2\"|\"b1\"|\"a2\"|\"a1\"}],",
+    "\"experience\": [{\"title\": string, \"company\": string, \"date\": string, \"description\": string}],",
+    "\"education\": [{\"degree\": string, \"school\": string, \"date\": string, \"description\": string}],",
+    "\"projects\": [{\"name\": string, \"stack\": string, \"link\": string, \"achievements\": string}]",
+    "},",
+    "\"design\": {\"template\": \"modern\"|\"classic\"|\"minimal\"|\"executive\"|\"creative\"}",
+    "}"
+  ].join(" ");
+
+  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${AI_DEV_GROQ_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: "llama-3.1-8b-instant",
+      temperature: 0.25,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: JSON.stringify(payload) }
+      ]
+    })
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const errorMessage = data?.error?.message || data?.message || "Groq request failed.";
+    throw new Error(errorMessage);
+  }
+  const raw = String(data?.choices?.[0]?.message?.content || "");
+  return parseModelJson(raw);
 }
 
 async function requestCoverLetterDirect(payload) {
@@ -965,7 +1286,7 @@ function renderPreview() {
 
 function applyDesignToPreview() {
   const classList = dom.cvPreview.classList;
-  classList.remove("template-modern", "template-classic", "template-minimal", "ats-mode");
+  classList.remove("template-modern", "template-classic", "template-minimal", "template-executive", "template-creative", "ats-mode");
   classList.add(`template-${state.design.template}`);
   if (state.design.atsMode) classList.add("ats-mode");
 
@@ -1720,7 +2041,7 @@ function normalizeSkills(value, fallback) {
 
 function normalizeDesign(design, fallback) {
   if (!design || typeof design !== "object") return fallback;
-  const allowedTemplates = ["modern", "classic", "minimal"];
+  const allowedTemplates = ["modern", "classic", "minimal", "executive", "creative"];
   const allowedFonts = ["jakarta", "lato", "nunito"];
   return {
     template: allowedTemplates.includes(design.template) ? design.template : fallback.template,
