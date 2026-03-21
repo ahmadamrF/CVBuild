@@ -1,11 +1,10 @@
 export async function onRequestPost(context) {
   const { request, env } = context;
-  const fallbackApiKey = "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";
-  const apiKey = env.GROQ_API_KEY || fallbackApiKey;
+  const apiKey = resolveApiKey(request, env);
 
   if (!apiKey) {
     return json(
-      { error: "Missing GROQ_API_KEY environment variable or fallback key." },
+      { error: "Missing Groq API key. Add GROQ_API_KEY in Cloudflare secrets or provide x-groq-api-key." },
       { status: 500 }
     );
   }
@@ -105,4 +104,10 @@ function json(payload, init = {}) {
       ...(init.headers || {})
     }
   });
+}
+
+function resolveApiKey(request, env) {
+  const userKey = String(request.headers.get("x-groq-api-key") || "").trim();
+  if (userKey) return userKey;
+  return String(env.GROQ_API_KEY || "").trim();
 }

@@ -1,10 +1,9 @@
 ﻿const STORAGE_KEY = "cvBuilderStateV2";
+const USER_GROQ_KEY_STORAGE_KEY = "cvBuilderUserGroqApiKey";
 const AI_ENHANCE_ENDPOINT = "/api/enhance";
 const COVER_LETTER_ENDPOINT = "/api/cover-letter";
 const CV_PARSE_ENDPOINT = "/api/parse-cv";
 const AI_CREATE_ENDPOINT = "/api/create-from-scratch";
-const AI_DEV_DIRECT_MODE = true;
-const AI_DEV_GROQ_KEY = "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";
 const BUILTIN_SECTION_KEYS = [
   "fullName",
   "jobTitle",
@@ -61,6 +60,7 @@ const dom = {
   accentColorInput: document.getElementById("accentColorInput"),
   fontSelect: document.getElementById("fontSelect"),
   atsModeToggle: document.getElementById("atsModeToggle"),
+  groqApiKeyInput: document.getElementById("groqApiKeyInput"),
   saveBtn: document.getElementById("saveBtn"),
   loadBtn: document.getElementById("loadBtn"),
   importExistingCvBtn: document.getElementById("importExistingCvBtn"),
@@ -90,7 +90,9 @@ const dom = {
   aiCreateAnswerSelect: document.getElementById("aiCreateAnswerSelect"),
   aiCreateBackBtn: document.getElementById("aiCreateBackBtn"),
   aiCreateNextBtn: document.getElementById("aiCreateNextBtn"),
-  aiCreateGenerateBtn: document.getElementById("aiCreateGenerateBtn")
+  aiCreateGenerateBtn: document.getElementById("aiCreateGenerateBtn"),
+  fabToggleBtn: document.getElementById("fabToggleBtn"),
+  fabMenu: document.getElementById("fabMenu")
 };
 
 init();
@@ -98,9 +100,6 @@ init();
 function init() {
   applySharedStateFromUrlIfPresent();
   initToastService();
-  if (AI_DEV_DIRECT_MODE) {
-    showToast("Dev direct AI mode is ON (API key is exposed in browser).", "info", 5000);
-  }
   hydrateInputs();
   renderAllEditors();
   applySectionOrderToEditor();
@@ -159,6 +158,16 @@ function bindEvents() {
   dom.atsModeToggle.addEventListener("change", (event) => {
     state.design.atsMode = event.target.checked;
     persistAndRenderPreview();
+  });
+
+  dom.groqApiKeyInput.addEventListener("change", (event) => {
+    setUserGroqApiKey(event.target.value);
+    showToast(
+      event.target.value.trim()
+        ? "Your Groq key was saved and will be used for AI requests."
+        : "Custom Groq key removed. Falling back to server key.",
+      "success"
+    );
   });
 
   dom.addCustomSectionBtn.addEventListener("click", addCustomSection);
@@ -257,14 +266,56 @@ function bindEvents() {
   dom.aiCreateGenerateBtn.addEventListener("click", generateCvFromAiQuestions);
   dom.aiCreateAnswerInput.addEventListener("input", storeCurrentAiCreateAnswer);
   dom.aiCreateAnswerSelect.addEventListener("change", storeCurrentAiCreateAnswer);
+  dom.fabToggleBtn.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleFabMenu();
+  });
+  dom.fabMenu.addEventListener("click", handleFabMenuClick);
+  document.addEventListener("click", (event) => {
+    if (!isFabMenuOpen()) return;
+    const insideFab = event.target.closest(".floating-actions");
+    if (!insideFab) closeFabMenu();
+  });
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
+    if (isFabMenuOpen()) closeFabMenu();
     if (!dom.aiCreateModal.hidden) {
       closeAiCreateModal();
       return;
     }
     if (!dom.coverLetterModal.hidden) closeCoverLetterModal();
   });
+}
+
+function toggleFabMenu() {
+  if (isFabMenuOpen()) {
+    closeFabMenu();
+    return;
+  }
+  dom.fabMenu.closest(".floating-actions")?.classList.add("is-open");
+  dom.fabToggleBtn.setAttribute("aria-expanded", "true");
+  dom.fabToggleBtn.textContent = "x";
+}
+
+function closeFabMenu() {
+  dom.fabMenu.closest(".floating-actions")?.classList.remove("is-open");
+  dom.fabToggleBtn.setAttribute("aria-expanded", "false");
+  dom.fabToggleBtn.textContent = "+";
+}
+
+function isFabMenuOpen() {
+  return dom.fabMenu.closest(".floating-actions")?.classList.contains("is-open");
+}
+
+function handleFabMenuClick(event) {
+  const target = event.target.closest("[data-fab-target]");
+  if (!target) return;
+  const id = target.dataset.fabTarget;
+  if (!id) return;
+  const actionButton = document.getElementById(id);
+  if (!actionButton) return;
+  actionButton.click();
+  closeFabMenu();
 }
 
 function initSortables() {
@@ -436,6 +487,7 @@ function hydrateInputs() {
   dom.accentColorInput.value = state.design.accentColor;
   dom.fontSelect.value = state.design.font;
   dom.atsModeToggle.checked = state.design.atsMode;
+  dom.groqApiKeyInput.value = getUserGroqApiKey();
 }
 
 function renderAllEditors() {
@@ -755,9 +807,7 @@ async function enhanceFieldText(button) {
         summary: state.summary
       }
     };
-    const enhancedText = AI_DEV_DIRECT_MODE
-      ? await requestEnhancementDirect(enhancePayload)
-      : await requestEnhancementViaServer(enhancePayload);
+    const enhancedText = await requestEnhancementViaServer(enhancePayload);
 
     if (!enhancedText) {
       throw new Error("The AI response was empty.");
@@ -796,7 +846,7 @@ function getFieldLabel(field) {
 async function requestEnhancementViaServer(payload) {
   const response = await fetch(AI_ENHANCE_ENDPOINT, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: buildApiJsonHeaders(),
     body: JSON.stringify(payload)
   });
 
@@ -807,54 +857,6 @@ async function requestEnhancementViaServer(payload) {
 
   return String(data.text || "").trim();
 }
-
-async function requestEnhancementDirect(payload) {
-  if (!AI_DEV_GROQ_KEY || AI_DEV_GROQ_KEY === "REPLACE_WITH_YOUR_GROQ_API_KEY") {
-    throw new Error("Set AI_DEV_GROQ_KEY in script.js for direct mode.");
-  }
-
-  const systemPrompt = [
-    "You improve resume text.",
-    "Keep the exact meaning, context, and factual details.",
-    "Do not add fake claims, awards, dates, metrics, tools, companies, or responsibilities.",
-    "Do not change language unless the input is mixed.",
-    "Make it clearer, more professional, and concise.",
-    "Return plain text only with no markdown and no explanations."
-  ].join(" ");
-
-  const userPrompt = [
-    `Section: ${payload.section}`,
-    `Field: ${payload.fieldLabel}`,
-    `CV context: ${JSON.stringify(payload.context || {})}`,
-    "Original text:",
-    payload.text
-  ].join("\n");
-
-  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${AI_DEV_GROQ_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: "llama-3.1-8b-instant",
-      temperature: 0.3,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
-      ]
-    })
-  });
-
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const errorMessage = data?.error?.message || data?.message || "Groq request failed.";
-    throw new Error(errorMessage);
-  }
-
-  return String(data?.choices?.[0]?.message?.content || "").trim();
-}
-
 function openCoverLetterModal() {
   dom.coverLetterModal.hidden = false;
   document.body.classList.add("modal-open");
@@ -881,9 +883,7 @@ async function generateCoverLetter() {
 
   try {
     const payload = { jobDescription, cv: buildCvContextForAi() };
-    const letter = AI_DEV_DIRECT_MODE
-      ? await requestCoverLetterDirect(payload)
-      : await requestCoverLetterViaServer(payload);
+    const letter = await requestCoverLetterViaServer(payload);
     if (!letter) throw new Error("No cover letter text returned.");
     dom.coverLetterOutput.value = letter;
     showToast("Cover letter generated successfully.", "success");
@@ -1110,9 +1110,7 @@ async function generateCvFromAiQuestions() {
       answers: { ...aiCreateAnswers },
       language: document.documentElement.lang || "en"
     };
-    const result = AI_DEV_DIRECT_MODE
-      ? await requestCreateFromScratchDirect(payload)
-      : await requestCreateFromScratchViaServer(payload);
+    const result = await requestCreateFromScratchViaServer(payload);
     const parsedCv = result?.cv && typeof result.cv === "object" ? result.cv : result;
     applyParsedCvData(parsedCv);
     applyAiGeneratedDesign(result?.design, payload.answers.templatePreference);
@@ -1161,7 +1159,7 @@ function buildCvContextForAi() {
 async function requestCoverLetterViaServer(payload) {
   const response = await fetch(COVER_LETTER_ENDPOINT, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: buildApiJsonHeaders(),
     body: JSON.stringify(payload)
   });
   const data = await response.json().catch(() => ({}));
@@ -1172,106 +1170,12 @@ async function requestCoverLetterViaServer(payload) {
 async function requestCreateFromScratchViaServer(payload) {
   const response = await fetch(AI_CREATE_ENDPOINT, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: buildApiJsonHeaders(),
     body: JSON.stringify(payload)
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || "Request failed.");
   return data;
-}
-
-async function requestCreateFromScratchDirect(payload) {
-  if (!AI_DEV_GROQ_KEY || AI_DEV_GROQ_KEY === "REPLACE_WITH_YOUR_GROQ_API_KEY") {
-    throw new Error("Set AI_DEV_GROQ_KEY in script.js for direct mode.");
-  }
-
-  const systemPrompt = [
-    "You create a complete, truthful CV JSON from questionnaire answers.",
-    "Do not invent employers, degrees, dates, links, or certifications that the user did not imply.",
-    "You may improve wording and structure to professional quality.",
-    "Return strict JSON only (no markdown).",
-    "Schema:",
-    "{",
-    "\"cv\": {",
-    "\"fullName\": string, \"jobTitle\": string, \"linkedin\": string, \"github\": string, \"summary\": string,",
-    "\"skills\": string[],",
-    "\"languages\": [{\"name\": string, \"level\": \"native\"|\"c2\"|\"c1\"|\"b2\"|\"b1\"|\"a2\"|\"a1\"}],",
-    "\"experience\": [{\"title\": string, \"company\": string, \"date\": string, \"description\": string}],",
-    "\"education\": [{\"degree\": string, \"school\": string, \"date\": string, \"description\": string}],",
-    "\"projects\": [{\"name\": string, \"stack\": string, \"link\": string, \"achievements\": string}]",
-    "},",
-    "\"design\": {\"template\": \"modern\"|\"classic\"|\"minimal\"|\"executive\"|\"creative\"}",
-    "}"
-  ].join(" ");
-
-  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${AI_DEV_GROQ_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: "llama-3.1-8b-instant",
-      temperature: 0.25,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: JSON.stringify(payload) }
-      ]
-    })
-  });
-
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const errorMessage = data?.error?.message || data?.message || "Groq request failed.";
-    throw new Error(errorMessage);
-  }
-  const raw = String(data?.choices?.[0]?.message?.content || "");
-  return parseModelJson(raw);
-}
-
-async function requestCoverLetterDirect(payload) {
-  if (!AI_DEV_GROQ_KEY || AI_DEV_GROQ_KEY === "REPLACE_WITH_YOUR_GROQ_API_KEY") {
-    throw new Error("Set AI_DEV_GROQ_KEY in script.js for direct mode.");
-  }
-
-  const systemPrompt = [
-    "You write tailored, truthful cover letters based on CV data and a job description.",
-    "Do not invent experience, metrics, companies, skills, or certifications.",
-    "Keep the tone professional and concise.",
-    "Output plain text only with no markdown."
-  ].join(" ");
-
-  const userPrompt = [
-    "Write a tailored cover letter.",
-    "Job description:",
-    payload.jobDescription,
-    "Candidate CV JSON:",
-    JSON.stringify(payload.cv)
-  ].join("\n\n");
-
-  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${AI_DEV_GROQ_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: "llama-3.1-8b-instant",
-      temperature: 0.35,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
-      ]
-    })
-  });
-
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const errorMessage = data?.error?.message || data?.message || "Groq request failed.";
-    throw new Error(errorMessage);
-  }
-
-  return String(data?.choices?.[0]?.message?.content || "").trim();
 }
 
 function renderPreview() {
@@ -1633,29 +1537,187 @@ function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
+function getUserGroqApiKey() {
+  return String(localStorage.getItem(USER_GROQ_KEY_STORAGE_KEY) || "").trim();
+}
+
+function setUserGroqApiKey(value) {
+  const key = String(value || "").trim();
+  if (!key) {
+    localStorage.removeItem(USER_GROQ_KEY_STORAGE_KEY);
+    return;
+  }
+  localStorage.setItem(USER_GROQ_KEY_STORAGE_KEY, key);
+}
+
+function buildApiJsonHeaders() {
+  const headers = { "Content-Type": "application/json" };
+  const key = getUserGroqApiKey();
+  if (key) headers["x-groq-api-key"] = key;
+  return headers;
+}
+
 async function exportPdf() {
   const mode = dom.pdfExportModeSelect?.value === "one-page" ? "one-page" : "normal";
   const isOnePage = mode === "one-page";
   const fileName = `${buildExportBaseName()}${isOnePage ? "_one_page" : ""}.pdf`;
-  const options = {
-    margin: isOnePage ? [4, 4, 4, 4] : [10, 10, 10, 10],
-    filename: fileName,
-    image: { type: "jpeg", quality: 0.98 },
-    html2canvas: { scale: isOnePage ? 1.7 : 2, useCORS: true },
-    jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-    pagebreak: { mode: ["avoid-all", "css", "legacy"] }
-  };
+  const margins = isOnePage
+    ? { top: 4, right: 4, bottom: 4, left: 4 }
+    : { top: 10, right: 10, bottom: 10, left: 10 };
 
   dom.cvPreview.classList.add("pdf-export-mode");
   dom.cvPreview.classList.toggle("pdf-export-one-page", isOnePage);
 
   try {
     await new Promise((resolve) => requestAnimationFrame(resolve));
-    await html2pdf().set(options).from(dom.cvPreview).save();
+    await exportSearchablePdf({
+      element: dom.cvPreview,
+      fileName,
+      margins,
+      canvasScale: isOnePage ? 1.7 : 2
+    });
     setStatus(isOnePage ? "One-page PDF exported." : "PDF exported.");
   } finally {
     dom.cvPreview.classList.remove("pdf-export-mode", "pdf-export-one-page");
   }
+}
+
+async function exportSearchablePdf({ element, fileName, margins, canvasScale }) {
+  const html2canvasLib = window.html2canvas || (typeof html2canvas !== "undefined" ? html2canvas : null);
+  const jsPdfLib = window.jspdf?.jsPDF || window.jsPDF || null;
+  if (!html2canvasLib || !jsPdfLib) {
+    throw new Error("PDF libraries are not loaded.");
+  }
+
+  const surfaceRect = element.getBoundingClientRect();
+  const fragments = collectPdfTextFragments(element);
+  const fullCanvas = await html2canvasLib(element, {
+    scale: canvasScale,
+    useCORS: true,
+    backgroundColor: "#ffffff"
+  });
+
+  const pdf = new jsPdfLib({ unit: "mm", format: "a4", orientation: "portrait" });
+  const pageWidthMm = pdf.internal.pageSize.getWidth();
+  const pageHeightMm = pdf.internal.pageSize.getHeight();
+  const contentWidthMm = pageWidthMm - margins.left - margins.right;
+  const contentHeightMm = pageHeightMm - margins.top - margins.bottom;
+  const mmPerPx = contentWidthMm / surfaceRect.width;
+  const pageHeightPx = contentHeightMm / mmPerPx;
+  const totalPages = Math.max(1, Math.ceil(surfaceRect.height / pageHeightPx));
+  const canvasPageHeightPx = pageHeightPx * canvasScale;
+
+  for (let pageIndex = 0; pageIndex < totalPages; pageIndex += 1) {
+    if (pageIndex > 0) pdf.addPage();
+    const startPx = pageIndex * pageHeightPx;
+    const remainingPx = Math.max(0, surfaceRect.height - startPx);
+    const sliceHeightPx = Math.min(pageHeightPx, remainingPx);
+
+    // Write selectable text first, then draw the visual image above it.
+    // This keeps the appearance identical while preserving text extraction/search.
+    renderPdfTextLayer(pdf, fragments, {
+      startPx,
+      sliceHeightPx,
+      margins,
+      mmPerPx
+    });
+
+    const pageCanvas = document.createElement("canvas");
+    pageCanvas.width = fullCanvas.width;
+    pageCanvas.height = Math.max(1, Math.round(sliceHeightPx * canvasScale));
+    const ctx = pageCanvas.getContext("2d");
+    if (!ctx) throw new Error("Could not create canvas context for PDF export.");
+
+    ctx.drawImage(
+      fullCanvas,
+      0,
+      Math.round(startPx * canvasScale),
+      fullCanvas.width,
+      Math.round(sliceHeightPx * canvasScale),
+      0,
+      0,
+      pageCanvas.width,
+      pageCanvas.height
+    );
+
+    const imgHeightMm = sliceHeightPx * mmPerPx;
+    pdf.addImage(
+      pageCanvas.toDataURL("image/jpeg", 0.98),
+      "JPEG",
+      margins.left,
+      margins.top,
+      contentWidthMm,
+      imgHeightMm,
+      undefined,
+      "FAST"
+    );
+  }
+
+  pdf.save(fileName);
+}
+
+function collectPdfTextFragments(container) {
+  const selectors = [
+    ".cv-name",
+    ".cv-title",
+    ".cv-section-title",
+    ".cv-entry-title",
+    ".cv-entry-meta",
+    ".cv-entry-date",
+    ".cv-paragraph",
+    ".cv-link",
+    ".cv-skill",
+    ".cv-language-name",
+    ".cv-language-level",
+    ".cv-list li",
+    ".cv-placeholder"
+  ].join(",");
+  const surfaceRect = container.getBoundingClientRect();
+  const nodes = [...container.querySelectorAll(selectors)];
+
+  return nodes
+    .map((node) => {
+      const text = normalizePdfText(node.textContent);
+      if (!text) return null;
+      const rect = node.getBoundingClientRect();
+      const style = window.getComputedStyle(node);
+      const fontSizePx = parseFloat(style.fontSize) || 12;
+      const weightValue = parseInt(style.fontWeight, 10);
+      const bold = Number.isFinite(weightValue) ? weightValue >= 600 : /bold/i.test(style.fontWeight);
+
+      return {
+        text,
+        xPx: Math.max(0, rect.left - surfaceRect.left),
+        yPx: Math.max(0, rect.top - surfaceRect.top),
+        widthPx: Math.max(0, rect.width),
+        heightPx: Math.max(fontSizePx * 1.2, rect.height),
+        fontSizePx,
+        bold
+      };
+    })
+    .filter(Boolean);
+}
+
+function normalizePdfText(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function renderPdfTextLayer(pdf, fragments, { startPx, sliceHeightPx, margins, mmPerPx }) {
+  fragments.forEach((fragment) => {
+    const bottomPx = fragment.yPx + fragment.heightPx;
+    if (bottomPx < startPx || fragment.yPx > startPx + sliceHeightPx) return;
+
+    const localYPx = fragment.yPx - startPx;
+    const xMm = margins.left + fragment.xPx * mmPerPx;
+    const yMm = margins.top + (localYPx + fragment.fontSizePx * 0.82) * mmPerPx;
+    const maxWidthMm = Math.max(10, fragment.widthPx * mmPerPx);
+    const fontSizePt = Math.max(7, fragment.fontSizePx * 0.75);
+
+    pdf.setFont("helvetica", fragment.bold ? "bold" : "normal");
+    pdf.setFontSize(fontSizePt);
+    pdf.setTextColor(0, 0, 0);
+    pdf.text(fragment.text, xMm, yMm, { maxWidth: maxWidthMm });
+  });
 }
 
 function exportJson() {
@@ -1692,18 +1754,19 @@ async function importExistingCvFile(event) {
   event.target.value = "";
   if (!file) return;
 
+  const importedJson = await tryImportStateJsonFile(file);
+  if (importedJson) return;
+
   showToast("Reading CV file...", "info", 1500);
 
   try {
     const cvText = await extractCvTextFromFile(file);
     if (!cvText.trim()) {
-      throw new Error("Could not extract text from this file.");
+      throw new Error("No readable text was found. If this is a scanned/image PDF, upload a DOCX/TXT or use JSON import.");
     }
 
     showToast("Extracting CV data with AI...", "info", 1500);
-    const parsed = AI_DEV_DIRECT_MODE
-      ? await requestCvParseDirect(cvText)
-      : await requestCvParseViaServer(cvText);
+    const parsed = await requestCvParseViaServer(cvText);
 
     applyParsedCvData(parsed);
     refreshUIFromState("Existing CV imported.");
@@ -1711,6 +1774,36 @@ async function importExistingCvFile(event) {
   } catch (error) {
     const message = error.message || "Unknown error.";
     showToast(`CV import failed: ${message}`, "error", 5000);
+  }
+}
+
+async function tryImportStateJsonFile(file) {
+  const lowerName = String(file.name || "").toLowerCase();
+  const mime = String(file.type || "").toLowerCase();
+  const isJson = lowerName.endsWith(".json") || mime.includes("json");
+  if (!isJson) return false;
+
+  try {
+    const raw = await file.text();
+    const parsed = safeJsonParse(raw);
+    if (!parsed || typeof parsed !== "object") return false;
+
+    const looksLikeAppState = (
+      "design" in parsed ||
+      "sectionOrder" in parsed ||
+      "experience" in parsed ||
+      "education" in parsed ||
+      "projects" in parsed ||
+      "skills" in parsed
+    );
+    if (!looksLikeAppState) return false;
+
+    state = sanitizeState(parsed);
+    refreshUIFromState("CV JSON imported.");
+    showToast("CV JSON imported successfully.", "success");
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -1740,11 +1833,16 @@ async function extractPdfText(file) {
   const arrayBuffer = await file.arrayBuffer();
   const doc = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   let text = "";
+  let extractedItems = 0;
   for (let i = 1; i <= doc.numPages; i += 1) {
     const page = await doc.getPage(i);
     const content = await page.getTextContent();
+    extractedItems += content.items.length;
     const pageText = content.items.map((item) => item.str).join(" ");
     text += `${pageText}\n`;
+  }
+  if (!text.trim() && extractedItems === 0) {
+    throw new Error("This PDF appears image-based (no selectable text).");
   }
   return text;
 }
@@ -1761,54 +1859,12 @@ async function extractDocxText(file) {
 async function requestCvParseViaServer(cvText) {
   const response = await fetch(CV_PARSE_ENDPOINT, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: buildApiJsonHeaders(),
     body: JSON.stringify({ cvText })
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || "Request failed.");
   return data;
-}
-
-async function requestCvParseDirect(cvText) {
-  if (!AI_DEV_GROQ_KEY || AI_DEV_GROQ_KEY === "REPLACE_WITH_YOUR_GROQ_API_KEY") {
-    throw new Error("Set AI_DEV_GROQ_KEY in script.js for direct mode.");
-  }
-
-  const systemPrompt = [
-    "Extract structured CV data from raw resume text.",
-    "Return strict JSON only (no markdown, no code fences).",
-    "Do not invent details.",
-    "Use this schema keys:",
-    "fullName, jobTitle, linkedin, github, summary, skills, languages, experience, education, projects.",
-    "languages is array of {name, level} where level is one of: native,c2,c1,b2,b1,a2,a1 when available.",
-    "experience: {title, company, date, description}",
-    "education: {degree, school, date, description}",
-    "projects: {name, stack, link, achievements}"
-  ].join(" ");
-
-  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${AI_DEV_GROQ_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: "llama-3.1-8b-instant",
-      temperature: 0.1,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: cvText.slice(0, 25000) }
-      ]
-    })
-  });
-
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const errorMessage = data?.error?.message || data?.message || "Groq request failed.";
-    throw new Error(errorMessage);
-  }
-  const raw = String(data?.choices?.[0]?.message?.content || "");
-  return parseModelJson(raw);
 }
 
 function parseModelJson(raw) {
@@ -2206,6 +2262,10 @@ function escapeHtml(value) {
 function escapeAttr(value) {
   return escapeHtml(value).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
+
+
+
+
 
 
 

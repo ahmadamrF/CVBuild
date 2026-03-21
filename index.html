@@ -65,6 +65,14 @@
             <input id="atsModeToggle" type="checkbox">
             ATS Mode
           </label>
+          <label class="groq-key-setting">
+            Groq API Key (Optional)
+            <input id="groqApiKeyInput" type="password" placeholder="gsk_...">
+            <small>
+              Add your own key to use your Groq account.
+              <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer">Get a key</a>
+            </small>
+          </label>
         </div>
       </section>
 
@@ -215,7 +223,24 @@
     </div>
   </div>
 
+  <div class="floating-actions">
+    <button id="fabToggleBtn" type="button" class="fab-toggle-btn" aria-label="Open quick actions" aria-expanded="false">+</button>
+    <div id="fabMenu" class="fab-menu">
+      <button type="button" data-fab-target="saveBtn">Save Draft</button>
+      <button type="button" data-fab-target="loadBtn">Load Draft</button>
+      <button type="button" data-fab-target="importExistingCvBtn">Import Existing CV</button>
+      <button type="button" data-fab-target="aiCreateCvBtn">Create with AI</button>
+      <button type="button" data-fab-target="exportJsonBtn">Export JSON</button>
+      <button type="button" data-fab-target="importJsonBtn">Import JSON</button>
+      <button type="button" data-fab-target="shareLinkBtn">Copy Share Link</button>
+      <button type="button" data-fab-target="coverLetterBtn">Cover Letter</button>
+      <button type="button" data-fab-target="exportPdfBtn">Export PDF</button>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
   <script src="https://unpkg.com/mammoth@1.8.0/mammoth.browser.min.js"></script>

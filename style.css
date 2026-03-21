@@ -151,6 +151,26 @@ button.primary:hover {
   color: #40576b;
 }
 
+.groq-key-setting {
+  grid-column: 1 / -1;
+}
+
+.groq-key-setting small {
+  color: #5a7286;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.groq-key-setting a {
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.groq-key-setting a:hover {
+  text-decoration: underline;
+}
+
 .design-grid select {
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -661,6 +681,75 @@ textarea {
   justify-content: flex-end;
 }
 
+.floating-actions {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 1150;
+  width: min(240px, calc(100vw - 2rem));
+  pointer-events: none;
+}
+
+.fab-toggle-btn {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 54px;
+  height: 54px;
+  border-radius: 999px;
+  border: 0;
+  background: linear-gradient(140deg, #0f5c90 0%, #1a8a7c 100%);
+  color: #fff;
+  font-size: 1.5rem;
+  font-weight: 700;
+  box-shadow: 0 14px 28px rgba(10, 44, 67, 0.35);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+  pointer-events: auto;
+}
+
+.fab-toggle-btn:hover {
+  border: 0;
+  box-shadow: 0 18px 30px rgba(10, 44, 67, 0.38);
+}
+
+.fab-menu {
+  position: absolute;
+  right: 0;
+  bottom: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.4rem;
+  background: #fff;
+  border: 1px solid #d7e2ec;
+  border-radius: 14px;
+  padding: 0.55rem;
+  width: 100%;
+  box-shadow: 0 16px 34px rgba(15, 31, 46, 0.22);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(10px) scale(0.98);
+  transition: opacity 180ms ease, transform 180ms ease, visibility 180ms ease;
+  pointer-events: none;
+}
+
+.floating-actions.is-open .fab-menu {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.floating-actions.is-open .fab-toggle-btn {
+  transform: scale(1.03);
+}
+
+.fab-menu button {
+  text-align: left;
+  border-radius: 10px;
+  padding: 0.52rem 0.65rem;
+}
+
 .toast-stack {
   position: fixed;
   top: 1rem;
@@ -947,5 +1036,15 @@ textarea {
     top: 0.75rem;
     right: 0.75rem;
     width: calc(100vw - 1.5rem);
+  }
+
+  .floating-actions {
+    right: 0.8rem;
+    bottom: 0.8rem;
+  }
+
+  .fab-toggle-btn {
+    width: 50px;
+    height: 50px;
   }
 }
