@@ -1,7 +1,13 @@
 ﻿const STORAGE_KEY = "cvBuilderStateV2";
+const USER_GROQ_KEY_STORAGE_KEY = "cvBuilderUserGroqApiKey";
+const AI_ENHANCE_ENDPOINT = "/api/enhance";
+const COVER_LETTER_ENDPOINT = "/api/cover-letter";
+const CV_PARSE_ENDPOINT = "/api/parse-cv";
+const AI_CREATE_ENDPOINT = "/api/create-from-scratch";
 const BUILTIN_SECTION_KEYS = [
   "fullName",
   "jobTitle",
+  "links",
   "summary",
   "experience",
   "education",
@@ -26,10 +32,15 @@ let experienceSortableInstance;
 let educationSortableInstance;
 let projectsSortableInstance;
 let languagesSortableInstance;
+let toastHost;
+let aiCreateStepIndex = 0;
+let aiCreateAnswers = {};
 
 const dom = {
   fullNameInput: document.getElementById("fullNameInput"),
   jobTitleInput: document.getElementById("jobTitleInput"),
+  linkedinInput: document.getElementById("linkedinInput"),
+  githubInput: document.getElementById("githubInput"),
   summaryInput: document.getElementById("summaryInput"),
   customSectionTitleInput: document.getElementById("customSectionTitleInput"),
   addCustomSectionBtn: document.getElementById("addCustomSectionBtn"),
@@ -49,26 +60,53 @@ const dom = {
   accentColorInput: document.getElementById("accentColorInput"),
   fontSelect: document.getElementById("fontSelect"),
   atsModeToggle: document.getElementById("atsModeToggle"),
+  groqApiKeyInput: document.getElementById("groqApiKeyInput"),
   saveBtn: document.getElementById("saveBtn"),
   loadBtn: document.getElementById("loadBtn"),
+  importExistingCvBtn: document.getElementById("importExistingCvBtn"),
+  aiCreateCvBtn: document.getElementById("aiCreateCvBtn"),
   exportJsonBtn: document.getElementById("exportJsonBtn"),
   importJsonBtn: document.getElementById("importJsonBtn"),
   importJsonFile: document.getElementById("importJsonFile"),
+  existingCvFileInput: document.getElementById("existingCvFileInput"),
   shareLinkBtn: document.getElementById("shareLinkBtn"),
+  pdfExportModeSelect: document.getElementById("pdfExportModeSelect"),
   exportPdfBtn: document.getElementById("exportPdfBtn"),
   cvPreview: document.getElementById("cvPreview"),
-  statusMessage: document.getElementById("statusMessage")
+  statusMessage: document.getElementById("statusMessage"),
+  coverLetterBtn: document.getElementById("coverLetterBtn"),
+  coverLetterModal: document.getElementById("coverLetterModal"),
+  closeCoverLetterModalBtn: document.getElementById("closeCoverLetterModalBtn"),
+  jobDescriptionInput: document.getElementById("jobDescriptionInput"),
+  generateCoverLetterBtn: document.getElementById("generateCoverLetterBtn"),
+  copyCoverLetterBtn: document.getElementById("copyCoverLetterBtn"),
+  coverLetterOutput: document.getElementById("coverLetterOutput"),
+  aiCreateModal: document.getElementById("aiCreateModal"),
+  closeAiCreateModalBtn: document.getElementById("closeAiCreateModalBtn"),
+  aiCreateQuestionLabel: document.getElementById("aiCreateQuestionLabel"),
+  aiCreateProgressText: document.getElementById("aiCreateProgressText"),
+  aiCreateProgressFill: document.getElementById("aiCreateProgressFill"),
+  aiCreateAnswerInput: document.getElementById("aiCreateAnswerInput"),
+  aiCreateAnswerSelect: document.getElementById("aiCreateAnswerSelect"),
+  aiCreateBackBtn: document.getElementById("aiCreateBackBtn"),
+  aiCreateNextBtn: document.getElementById("aiCreateNextBtn"),
+  aiCreateGenerateBtn: document.getElementById("aiCreateGenerateBtn"),
+  fabToggleBtn: document.getElementById("fabToggleBtn"),
+  fabMenu: document.getElementById("fabMenu")
 };
 
 init();
 
 function init() {
   applySharedStateFromUrlIfPresent();
+  initToastService();
   hydrateInputs();
   renderAllEditors();
   applySectionOrderToEditor();
+  ensureBuiltinSectionDeleteButtons();
   initSortables();
   bindEvents();
+  attachAiEnhanceButtons();
   renderPreview();
 }
 
@@ -80,6 +118,16 @@ function bindEvents() {
 
   dom.jobTitleInput.addEventListener("input", (event) => {
     state.jobTitle = event.target.value;
+    persistAndRenderPreview();
+  });
+
+  dom.linkedinInput.addEventListener("input", (event) => {
+    state.linkedin = event.target.value;
+    persistAndRenderPreview();
+  });
+
+  dom.githubInput.addEventListener("input", (event) => {
+    state.github = event.target.value;
     persistAndRenderPreview();
   });
 
@@ -110,6 +158,16 @@ function bindEvents() {
   dom.atsModeToggle.addEventListener("change", (event) => {
     state.design.atsMode = event.target.checked;
     persistAndRenderPreview();
+  });
+
+  dom.groqApiKeyInput.addEventListener("change", (event) => {
+    setUserGroqApiKey(event.target.value);
+    showToast(
+      event.target.value.trim()
+        ? "Your Groq key was saved and will be used for AI requests."
+        : "Custom Groq key removed. Falling back to server key.",
+      "success"
+    );
   });
 
   dom.addCustomSectionBtn.addEventListener("click", addCustomSection);
@@ -182,12 +240,82 @@ function bindEvents() {
     refreshUIFromState("Draft loaded.");
   });
 
+  dom.importExistingCvBtn.addEventListener("click", () => dom.existingCvFileInput.click());
+  dom.aiCreateCvBtn.addEventListener("click", openAiCreateModal);
+  dom.existingCvFileInput.addEventListener("change", importExistingCvFile);
   dom.exportJsonBtn.addEventListener("click", exportJson);
   dom.importJsonBtn.addEventListener("click", () => dom.importJsonFile.click());
   dom.importJsonFile.addEventListener("change", importJsonFile);
 
   dom.shareLinkBtn.addEventListener("click", copyShareLink);
   dom.exportPdfBtn.addEventListener("click", exportPdf);
+
+  dom.coverLetterBtn.addEventListener("click", openCoverLetterModal);
+  dom.closeCoverLetterModalBtn.addEventListener("click", closeCoverLetterModal);
+  dom.generateCoverLetterBtn.addEventListener("click", generateCoverLetter);
+  dom.copyCoverLetterBtn.addEventListener("click", copyCoverLetterOutput);
+  dom.coverLetterModal.addEventListener("click", (event) => {
+    if (event.target === dom.coverLetterModal) closeCoverLetterModal();
+  });
+  dom.closeAiCreateModalBtn.addEventListener("click", closeAiCreateModal);
+  dom.aiCreateModal.addEventListener("click", (event) => {
+    if (event.target === dom.aiCreateModal) closeAiCreateModal();
+  });
+  dom.aiCreateBackBtn.addEventListener("click", goToPreviousAiCreateQuestion);
+  dom.aiCreateNextBtn.addEventListener("click", goToNextAiCreateQuestion);
+  dom.aiCreateGenerateBtn.addEventListener("click", generateCvFromAiQuestions);
+  dom.aiCreateAnswerInput.addEventListener("input", storeCurrentAiCreateAnswer);
+  dom.aiCreateAnswerSelect.addEventListener("change", storeCurrentAiCreateAnswer);
+  dom.fabToggleBtn.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleFabMenu();
+  });
+  dom.fabMenu.addEventListener("click", handleFabMenuClick);
+  document.addEventListener("click", (event) => {
+    if (!isFabMenuOpen()) return;
+    const insideFab = event.target.closest(".floating-actions");
+    if (!insideFab) closeFabMenu();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (isFabMenuOpen()) closeFabMenu();
+    if (!dom.aiCreateModal.hidden) {
+      closeAiCreateModal();
+      return;
+    }
+    if (!dom.coverLetterModal.hidden) closeCoverLetterModal();
+  });
+}
+
+function toggleFabMenu() {
+  if (isFabMenuOpen()) {
+    closeFabMenu();
+    return;
+  }
+  dom.fabMenu.closest(".floating-actions")?.classList.add("is-open");
+  dom.fabToggleBtn.setAttribute("aria-expanded", "true");
+  dom.fabToggleBtn.textContent = "x";
+}
+
+function closeFabMenu() {
+  dom.fabMenu.closest(".floating-actions")?.classList.remove("is-open");
+  dom.fabToggleBtn.setAttribute("aria-expanded", "false");
+  dom.fabToggleBtn.textContent = "+";
+}
+
+function isFabMenuOpen() {
+  return dom.fabMenu.closest(".floating-actions")?.classList.contains("is-open");
+}
+
+function handleFabMenuClick(event) {
+  const target = event.target.closest("[data-fab-target]");
+  if (!target) return;
+  const id = target.dataset.fabTarget;
+  if (!id) return;
+  const actionButton = document.getElementById(id);
+  if (!actionButton) return;
+  actionButton.click();
+  closeFabMenu();
 }
 
 function initSortables() {
@@ -291,6 +419,23 @@ function handleEditorInput(event) {
 
 function handleEditorClicks(event) {
   const target = event.target;
+  if (target.matches("[data-action='enhance-text']")) {
+    enhanceFieldText(target);
+    return;
+  }
+  if (target.matches("[data-action='remove-section']")) {
+    removeBuiltinSection(target.dataset.section);
+    return;
+  }
+  if (target.matches("[data-action='format-experience']")) {
+    applyFormatting(target.dataset.formatTarget, target.dataset.formatType);
+    return;
+  }
+  if (target.matches("[data-action='format-project']")) {
+    applyFormatting(target.dataset.formatTarget, target.dataset.formatType);
+    return;
+  }
+
   const id = target.dataset.id;
   if (!id) return;
 
@@ -330,20 +475,19 @@ function handleEditorClicks(event) {
     removeCustomSection(id);
     return;
   }
-
-  if (target.matches("[data-action='format-experience']")) {
-    applyFormatting(target.dataset.formatTarget, target.dataset.formatType);
-  }
 }
 
 function hydrateInputs() {
   dom.fullNameInput.value = state.fullName;
   dom.jobTitleInput.value = state.jobTitle;
+  dom.linkedinInput.value = state.linkedin;
+  dom.githubInput.value = state.github;
   dom.summaryInput.value = state.summary;
   dom.templateSelect.value = state.design.template;
   dom.accentColorInput.value = state.design.accentColor;
   dom.fontSelect.value = state.design.font;
   dom.atsModeToggle.checked = state.design.atsMode;
+  dom.groqApiKeyInput.value = getUserGroqApiKey();
 }
 
 function renderAllEditors() {
@@ -376,14 +520,26 @@ function renderCustomSectionCards() {
     `;
     dom.sectionsContainer.appendChild(card);
   });
+  attachAiEnhanceButtons();
 }
 
 function applySectionOrderToEditor() {
-  const cards = [...dom.sectionsContainer.querySelectorAll(".editor-card")];
+  const hiddenBuiltins = new Set(state.hiddenSections || []);
+  const cards = [...dom.sectionsContainer.querySelectorAll(".editor-card")].filter((card) => {
+    const sectionKey = card.dataset.section;
+    if (hiddenBuiltins.has(sectionKey) && BUILTIN_SECTION_KEYS.includes(sectionKey)) {
+      card.remove();
+      return false;
+    }
+    return true;
+  });
   const map = new Map(cards.map((card) => [card.dataset.section, card]));
   const availableKeys = new Set(cards.map((card) => card.dataset.section));
 
-  state.sectionOrder = state.sectionOrder.filter((sectionKey) => availableKeys.has(sectionKey));
+  state.sectionOrder = state.sectionOrder.filter((sectionKey) => {
+    if (hiddenBuiltins.has(sectionKey) && BUILTIN_SECTION_KEYS.includes(sectionKey)) return false;
+    return availableKeys.has(sectionKey);
+  });
   cards.forEach((card) => {
     if (!state.sectionOrder.includes(card.dataset.section)) state.sectionOrder.push(card.dataset.section);
   });
@@ -416,6 +572,7 @@ function renderExperienceEditor() {
       <textarea id="exp_${entry.id}" data-type="experience-field" data-id="${entry.id}" data-key="description" rows="3" placeholder="Main achievements and responsibilities...">${escapeHtml(entry.description)}</textarea>
     </div>
   `).join("");
+  attachAiEnhanceButtons();
 }
 
 function renderEducationEditor() {
@@ -437,6 +594,7 @@ function renderEducationEditor() {
       <textarea data-type="education-field" data-id="${entry.id}" data-key="description" rows="3" placeholder="Relevant coursework or highlights...">${escapeHtml(entry.description)}</textarea>
     </div>
   `).join("");
+  attachAiEnhanceButtons();
 }
 
 function renderProjectsEditor() {
@@ -455,9 +613,14 @@ function renderProjectsEditor() {
         <input data-type="project-field" data-id="${entry.id}" data-key="stack" type="text" placeholder="Tech stack" value="${escapeAttr(entry.stack)}">
       </div>
       <input data-type="project-field" data-id="${entry.id}" data-key="link" type="text" placeholder="Project URL" value="${escapeAttr(entry.link)}">
-      <textarea data-type="project-field" data-id="${entry.id}" data-key="achievements" rows="3" placeholder="Achievements / impact...">${escapeHtml(entry.achievements)}</textarea>
+      <div class="format-actions">
+        <button type="button" data-action="format-project" data-format-target="proj_${entry.id}" data-format-type="bold">Bold</button>
+        <button type="button" data-action="format-project" data-format-target="proj_${entry.id}" data-format-type="bullet">Bullet</button>
+      </div>
+      <textarea id="proj_${entry.id}" data-type="project-field" data-id="${entry.id}" data-key="achievements" rows="3" placeholder="Achievements / impact...">${escapeHtml(entry.achievements)}</textarea>
     </div>
   `).join("");
+  attachAiEnhanceButtons();
 }
 
 function renderLanguagesEditor() {
@@ -479,6 +642,7 @@ function renderLanguagesEditor() {
       </div>
     </div>
   `).join("");
+  attachAiEnhanceButtons();
 }
 
 function renderSkillsEditor() {
@@ -492,6 +656,7 @@ function renderSkillsEditor() {
       <button type="button" data-action="remove-skill" data-index="${index}" aria-label="Remove ${escapeAttr(skill)}">x</button>
     </li>
   `).join("");
+  attachAiEnhanceButtons();
 }
 
 function addSkillFromInput() {
@@ -528,6 +693,42 @@ function removeCustomSection(id) {
   setStatus("Custom section removed.");
 }
 
+function ensureBuiltinSectionDeleteButtons() {
+  BUILTIN_SECTION_KEYS.forEach((sectionKey) => {
+    const card = dom.sectionsContainer.querySelector(`.editor-card[data-section='${sectionKey}']`);
+    if (!card) return;
+    const header = card.querySelector(".card-header");
+    if (!header) return;
+    if (header.querySelector("[data-action='remove-section']")) return;
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "remove-btn section-remove-btn";
+    button.dataset.action = "remove-section";
+    button.dataset.section = sectionKey;
+    button.textContent = "Delete Section";
+
+    const dragHandle = header.querySelector(".drag-handle");
+    if (dragHandle) {
+      header.insertBefore(button, dragHandle);
+    } else {
+      header.appendChild(button);
+    }
+  });
+}
+
+function removeBuiltinSection(sectionKey) {
+  if (!BUILTIN_SECTION_KEYS.includes(sectionKey)) return;
+  if (!Array.isArray(state.hiddenSections)) state.hiddenSections = [];
+  if (!state.hiddenSections.includes(sectionKey)) state.hiddenSections.push(sectionKey);
+  state.sectionOrder = state.sectionOrder.filter((key) => key !== sectionKey);
+
+  const card = dom.sectionsContainer.querySelector(`.editor-card[data-section='${sectionKey}']`);
+  if (card) card.remove();
+  persistAndRenderPreview();
+  setStatus("Section deleted.");
+}
+
 function applyFormatting(targetId, type) {
   const target = document.getElementById(targetId);
   if (!target) return;
@@ -545,6 +746,438 @@ function applyFormatting(targetId, type) {
   target.focus();
 }
 
+function attachAiEnhanceButtons() {
+  if (!dom.sectionsContainer) return;
+
+  const fields = dom.sectionsContainer.querySelectorAll("input[type='text'], textarea");
+  fields.forEach((field) => {
+    if (field.dataset.aiEnhancedControl === "true") return;
+
+    if (!field.id) field.id = uid("field");
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "ai-field-wrap";
+    field.parentElement.insertBefore(wrapper, field);
+    wrapper.appendChild(field);
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "ai-enhance-btn";
+    button.dataset.action = "enhance-text";
+    button.dataset.targetId = field.id;
+    button.dataset.section = getSectionNameForField(field);
+    button.textContent = "Enhance with AI";
+    wrapper.appendChild(button);
+
+    field.dataset.aiEnhancedControl = "true";
+  });
+}
+
+async function enhanceFieldText(button) {
+  const targetId = button.dataset.targetId;
+  const targetField = targetId ? document.getElementById(targetId) : null;
+  if (!targetField) {
+    setStatus("Could not find the selected text field.");
+    showToast("AI enhancement failed: target field was not found.", "error");
+    return;
+  }
+
+  const currentText = String(targetField.value || "").trim();
+  if (!currentText) {
+    setStatus("Write some text first, then enhance it.");
+    showToast("Write some text first, then try AI enhance.", "info");
+    targetField.focus();
+    return;
+  }
+
+  const previousLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = "Enhancing...";
+  setStatus("Enhancing text with AI...");
+  showToast("Enhancing text with AI...", "info", 1500);
+
+  try {
+    const enhancePayload = {
+      text: targetField.value,
+      section: button.dataset.section || "CV section",
+      fieldLabel: getFieldLabel(targetField),
+      context: {
+        fullName: state.fullName,
+        jobTitle: state.jobTitle,
+        summary: state.summary
+      }
+    };
+    const enhancedText = await requestEnhancementViaServer(enhancePayload);
+
+    if (!enhancedText) {
+      throw new Error("The AI response was empty.");
+    }
+
+    targetField.value = enhancedText;
+    targetField.dispatchEvent(new Event("input", { bubbles: true }));
+    targetField.focus();
+    setStatus("Text enhanced while keeping your original context.");
+    showToast("Text enhanced successfully.", "success");
+  } catch (error) {
+    console.error("AI enhancement error:", error);
+    const errorMessage = error.message || "Unknown error.";
+    setStatus(`AI enhancement failed: ${errorMessage}`);
+    showToast(`AI enhancement failed: ${errorMessage}`, "error", 5000);
+  } finally {
+    button.disabled = false;
+    button.textContent = previousLabel;
+  }
+}
+
+function getSectionNameForField(field) {
+  const card = field.closest(".editor-card");
+  const cardTitle = card?.querySelector(".card-header h2")?.textContent?.trim();
+  if (cardTitle) return cardTitle;
+  if (field.closest(".custom-section-creator")) return "Custom section setup";
+  return "CV section";
+}
+
+function getFieldLabel(field) {
+  if (field.placeholder) return field.placeholder;
+  if (field.dataset.key) return field.dataset.key;
+  return field.name || field.id || "text";
+}
+
+async function requestEnhancementViaServer(payload) {
+  const response = await fetch(AI_ENHANCE_ENDPOINT, {
+    method: "POST",
+    headers: buildApiJsonHeaders(),
+    body: JSON.stringify(payload)
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || "Request failed.");
+  }
+
+  return String(data.text || "").trim();
+}
+function openCoverLetterModal() {
+  dom.coverLetterModal.hidden = false;
+  document.body.classList.add("modal-open");
+  dom.jobDescriptionInput.focus();
+}
+
+function closeCoverLetterModal() {
+  dom.coverLetterModal.hidden = true;
+  document.body.classList.remove("modal-open");
+}
+
+async function generateCoverLetter() {
+  const jobDescription = String(dom.jobDescriptionInput.value || "").trim();
+  if (!jobDescription) {
+    showToast("Add the job description first.", "info");
+    dom.jobDescriptionInput.focus();
+    return;
+  }
+
+  const originalLabel = dom.generateCoverLetterBtn.textContent;
+  dom.generateCoverLetterBtn.disabled = true;
+  dom.generateCoverLetterBtn.textContent = "Generating...";
+  showToast("Generating cover letter...", "info", 1500);
+
+  try {
+    const payload = { jobDescription, cv: buildCvContextForAi() };
+    const letter = await requestCoverLetterViaServer(payload);
+    if (!letter) throw new Error("No cover letter text returned.");
+    dom.coverLetterOutput.value = letter;
+    showToast("Cover letter generated successfully.", "success");
+  } catch (error) {
+    const errorMessage = error.message || "Unknown error.";
+    showToast(`Cover letter generation failed: ${errorMessage}`, "error", 5000);
+  } finally {
+    dom.generateCoverLetterBtn.disabled = false;
+    dom.generateCoverLetterBtn.textContent = originalLabel;
+  }
+}
+
+async function copyCoverLetterOutput() {
+  const value = String(dom.coverLetterOutput.value || "").trim();
+  if (!value) {
+    showToast("No cover letter to copy yet.", "info");
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(value);
+    showToast("Cover letter copied.", "success");
+  } catch {
+    showToast("Could not copy cover letter.", "error");
+  }
+}
+
+function getAiCreateQuestions() {
+  return [
+    {
+      id: "fullName",
+      label: "What is your full name?",
+      type: "text",
+      placeholder: "e.g., Ahmad Samir",
+      required: true
+    },
+    {
+      id: "targetRole",
+      label: "What role are you targeting with this CV?",
+      type: "text",
+      placeholder: "e.g., Frontend Developer / Product Designer",
+      required: true
+    },
+    {
+      id: "locationWorkMode",
+      label: "What location and work preference should we mention?",
+      type: "text",
+      placeholder: "e.g., Cairo, Egypt | Open to remote/hybrid/on-site"
+    },
+    {
+      id: "yearsExperience",
+      label: "How many years of experience do you have, and in which domains?",
+      type: "text",
+      placeholder: "e.g., 4 years in web apps, dashboards, and e-commerce"
+    },
+    {
+      id: "topSkills",
+      label: "List your top technical and soft skills.",
+      type: "text",
+      placeholder: "e.g., React, TypeScript, API integration, problem solving, teamwork"
+    },
+    {
+      id: "experienceHighlights",
+      label: "Share your best work achievements (numbers if possible).",
+      type: "textarea",
+      placeholder: "e.g., Improved load speed by 35%, shipped design system used by 3 teams"
+    },
+    {
+      id: "education",
+      label: "What is your education background?",
+      type: "text",
+      placeholder: "Degree, school, graduation year, honors"
+    },
+    {
+      id: "projects",
+      label: "Mention 1-3 important projects (name, stack, impact).",
+      type: "textarea",
+      placeholder: "Project name | stack | what it achieved"
+    },
+    {
+      id: "languages",
+      label: "Which languages do you speak and at what levels?",
+      type: "text",
+      placeholder: "e.g., Arabic (Native), English (C1)"
+    },
+    {
+      id: "links",
+      label: "Share useful links (LinkedIn, GitHub, portfolio).",
+      type: "text",
+      placeholder: "URLs separated by commas"
+    },
+    {
+      id: "tone",
+      label: "Which tone should the CV use?",
+      type: "select",
+      required: true,
+      options: [
+        { value: "professional", label: "Professional and concise" },
+        { value: "impact", label: "Impact-driven and results-focused" },
+        { value: "balanced", label: "Balanced technical and human tone" }
+      ]
+    },
+    {
+      id: "templatePreference",
+      label: "Which template look do you prefer?",
+      type: "select",
+      required: true,
+      options: [
+        { value: "modern", label: "Modern" },
+        { value: "executive", label: "Executive" },
+        { value: "creative", label: "Creative" },
+        { value: "classic", label: "Classic" },
+        { value: "minimal", label: "Minimal" }
+      ]
+    }
+  ];
+}
+
+function openAiCreateModal() {
+  aiCreateAnswers = buildDefaultAiCreateAnswers();
+  aiCreateStepIndex = 0;
+  renderAiCreateStep();
+  dom.aiCreateModal.hidden = false;
+  document.body.classList.add("modal-open");
+}
+
+function closeAiCreateModal() {
+  dom.aiCreateModal.hidden = true;
+  document.body.classList.remove("modal-open");
+}
+
+function buildDefaultAiCreateAnswers() {
+  return {
+    fullName: String(state.fullName || "").trim(),
+    targetRole: String(state.jobTitle || "").trim(),
+    templatePreference: state.design?.template || "modern",
+    tone: "professional",
+    links: [state.linkedin, state.github].filter(Boolean).join(", ")
+  };
+}
+
+function renderAiCreateStep() {
+  const questions = getAiCreateQuestions();
+  const question = questions[aiCreateStepIndex];
+  if (!question) return;
+
+  const total = questions.length;
+  dom.aiCreateQuestionLabel.textContent = question.label;
+  dom.aiCreateProgressText.textContent = `Question ${aiCreateStepIndex + 1} of ${total}`;
+  dom.aiCreateProgressFill.style.width = `${((aiCreateStepIndex + 1) / total) * 100}%`;
+
+  const currentValue = String(aiCreateAnswers[question.id] || "");
+  const isSelect = question.type === "select";
+  dom.aiCreateAnswerInput.hidden = isSelect;
+  dom.aiCreateAnswerSelect.hidden = !isSelect;
+
+  if (isSelect) {
+    const options = Array.isArray(question.options) ? question.options : [];
+    dom.aiCreateAnswerSelect.innerHTML = options.map((option) => (
+      `<option value="${escapeAttr(option.value)}">${escapeHtml(option.label)}</option>`
+    )).join("");
+    const fallbackValue = options[0]?.value || "";
+    dom.aiCreateAnswerSelect.value = currentValue || fallbackValue;
+    aiCreateAnswers[question.id] = dom.aiCreateAnswerSelect.value;
+    dom.aiCreateAnswerSelect.focus();
+  } else {
+    dom.aiCreateAnswerInput.value = currentValue;
+    dom.aiCreateAnswerInput.placeholder = question.placeholder || "Type your answer...";
+    dom.aiCreateAnswerInput.rows = question.type === "textarea" ? 6 : 4;
+    dom.aiCreateAnswerInput.focus();
+  }
+
+  dom.aiCreateBackBtn.disabled = aiCreateStepIndex === 0;
+  dom.aiCreateNextBtn.hidden = aiCreateStepIndex === total - 1;
+  dom.aiCreateGenerateBtn.hidden = aiCreateStepIndex !== total - 1;
+}
+
+function storeCurrentAiCreateAnswer() {
+  const question = getAiCreateQuestions()[aiCreateStepIndex];
+  if (!question) return;
+  const value = question.type === "select"
+    ? dom.aiCreateAnswerSelect.value
+    : dom.aiCreateAnswerInput.value;
+  aiCreateAnswers[question.id] = String(value || "").trim();
+}
+
+function validateCurrentAiCreateAnswer() {
+  const question = getAiCreateQuestions()[aiCreateStepIndex];
+  if (!question) return false;
+  storeCurrentAiCreateAnswer();
+  if (!question.required) return true;
+  if (String(aiCreateAnswers[question.id] || "").trim()) return true;
+  showToast("Please answer this required question before continuing.", "info");
+  return false;
+}
+
+function goToNextAiCreateQuestion() {
+  if (!validateCurrentAiCreateAnswer()) return;
+  const total = getAiCreateQuestions().length;
+  aiCreateStepIndex = Math.min(aiCreateStepIndex + 1, total - 1);
+  renderAiCreateStep();
+}
+
+function goToPreviousAiCreateQuestion() {
+  storeCurrentAiCreateAnswer();
+  aiCreateStepIndex = Math.max(aiCreateStepIndex - 1, 0);
+  renderAiCreateStep();
+}
+
+async function generateCvFromAiQuestions() {
+  if (!validateCurrentAiCreateAnswer()) return;
+
+  const originalLabel = dom.aiCreateGenerateBtn.textContent;
+  dom.aiCreateGenerateBtn.disabled = true;
+  dom.aiCreateBackBtn.disabled = true;
+  dom.aiCreateNextBtn.disabled = true;
+  dom.aiCreateAnswerInput.disabled = true;
+  dom.aiCreateAnswerSelect.disabled = true;
+  dom.aiCreateGenerateBtn.textContent = "Generating...";
+  showToast("Creating your CV draft with AI...", "info", 1500);
+  setStatus("Generating CV from your answers...");
+
+  try {
+    const payload = {
+      answers: { ...aiCreateAnswers },
+      language: document.documentElement.lang || "en"
+    };
+    const result = await requestCreateFromScratchViaServer(payload);
+    const parsedCv = result?.cv && typeof result.cv === "object" ? result.cv : result;
+    applyParsedCvData(parsedCv);
+    applyAiGeneratedDesign(result?.design, payload.answers.templatePreference);
+    saveState();
+    refreshUIFromState("AI CV draft created. Review and adjust any details.");
+    closeAiCreateModal();
+    showToast("CV draft generated successfully.", "success");
+  } catch (error) {
+    const errorMessage = error.message || "Unknown error.";
+    setStatus(`AI CV generation failed: ${errorMessage}`);
+    showToast(`AI CV generation failed: ${errorMessage}`, "error", 5000);
+  } finally {
+    dom.aiCreateGenerateBtn.disabled = false;
+    dom.aiCreateBackBtn.disabled = false;
+    dom.aiCreateNextBtn.disabled = false;
+    dom.aiCreateAnswerInput.disabled = false;
+    dom.aiCreateAnswerSelect.disabled = false;
+    dom.aiCreateGenerateBtn.textContent = originalLabel;
+  }
+}
+
+function applyAiGeneratedDesign(design, fallbackTemplate) {
+  const allowedTemplates = ["modern", "classic", "minimal", "executive", "creative"];
+  const preferredTemplate = String(design?.template || fallbackTemplate || "").toLowerCase();
+  if (allowedTemplates.includes(preferredTemplate)) {
+    state.design.template = preferredTemplate;
+  }
+}
+
+function buildCvContextForAi() {
+  return {
+    fullName: state.fullName,
+    jobTitle: state.jobTitle,
+    linkedin: state.linkedin,
+    github: state.github,
+    summary: state.summary,
+    experience: state.experience,
+    education: state.education,
+    projects: state.projects,
+    languages: state.languages,
+    skills: state.skills,
+    customSections: state.customSections
+  };
+}
+
+async function requestCoverLetterViaServer(payload) {
+  const response = await fetch(COVER_LETTER_ENDPOINT, {
+    method: "POST",
+    headers: buildApiJsonHeaders(),
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "Request failed.");
+  return String(data.text || "").trim();
+}
+
+async function requestCreateFromScratchViaServer(payload) {
+  const response = await fetch(AI_CREATE_ENDPOINT, {
+    method: "POST",
+    headers: buildApiJsonHeaders(),
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "Request failed.");
+  return data;
+}
+
 function renderPreview() {
   dom.cvPreview.innerHTML = "";
   applyDesignToPreview();
@@ -557,7 +1190,7 @@ function renderPreview() {
 
 function applyDesignToPreview() {
   const classList = dom.cvPreview.classList;
-  classList.remove("template-modern", "template-classic", "template-minimal", "ats-mode");
+  classList.remove("template-modern", "template-classic", "template-minimal", "template-executive", "template-creative", "ats-mode");
   classList.add(`template-${state.design.template}`);
   if (state.design.atsMode) classList.add("ats-mode");
 
@@ -623,6 +1256,34 @@ function renderPreviewSection(sectionKey) {
     title.textContent = state.jobTitle.trim() || "Your Job Title";
     if (!state.jobTitle.trim()) title.classList.add("cv-placeholder");
     wrapper.appendChild(title);
+    return wrapper;
+  }
+
+  if (sectionKey === "links") {
+    const wrapper = document.createElement("section");
+    wrapper.className = "cv-section";
+    const links = [
+      { label: "LinkedIn", value: state.linkedin },
+      { label: "GitHub", value: state.github }
+    ].filter((item) => String(item.value || "").trim());
+
+    if (!links.length) {
+      appendPlaceholder(wrapper, "Add LinkedIn and GitHub links.");
+      return wrapper;
+    }
+
+    const linksWrap = document.createElement("div");
+    linksWrap.className = "cv-social-links";
+    links.forEach((item) => {
+      const link = document.createElement("a");
+      link.className = "cv-link";
+      link.href = normalizeExternalUrl(item.value);
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = `${item.label}: ${item.value}`;
+      linksWrap.appendChild(link);
+    });
+    wrapper.appendChild(linksWrap);
     return wrapper;
   }
 
@@ -876,31 +1537,187 @@ function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
-function exportPdf() {
-  const btn = dom.exportPdfBtn;
-  btn.disabled = true;
-  setStatus("Generating PDF…");
-  const options = {
-    margin: [10, 10, 10, 10],
-    filename: `${(state.fullName || "cv").trim().replace(/\s+/g, "_")}.pdf`,
-    image: { type: "jpeg", quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true },
-    jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
-  };
-  html2pdf()
-    .set(options)
-    .from(dom.cvPreview)
-    .save()
-    .then(() => {
-      setStatus("PDF exported successfully.");
-    })
-    .catch((err) => {
-      console.error("PDF export error:", err);
-      setStatus("PDF export failed. Please try again.");
-    })
-    .finally(() => {
-      btn.disabled = false;
+function getUserGroqApiKey() {
+  return String(localStorage.getItem(USER_GROQ_KEY_STORAGE_KEY) || "").trim();
+}
+
+function setUserGroqApiKey(value) {
+  const key = String(value || "").trim();
+  if (!key) {
+    localStorage.removeItem(USER_GROQ_KEY_STORAGE_KEY);
+    return;
+  }
+  localStorage.setItem(USER_GROQ_KEY_STORAGE_KEY, key);
+}
+
+function buildApiJsonHeaders() {
+  const headers = { "Content-Type": "application/json" };
+  const key = getUserGroqApiKey();
+  if (key) headers["x-groq-api-key"] = key;
+  return headers;
+}
+
+async function exportPdf() {
+  const mode = dom.pdfExportModeSelect?.value === "one-page" ? "one-page" : "normal";
+  const isOnePage = mode === "one-page";
+  const fileName = `${buildExportBaseName()}${isOnePage ? "_one_page" : ""}.pdf`;
+  const margins = isOnePage
+    ? { top: 4, right: 4, bottom: 4, left: 4 }
+    : { top: 10, right: 10, bottom: 10, left: 10 };
+
+  dom.cvPreview.classList.add("pdf-export-mode");
+  dom.cvPreview.classList.toggle("pdf-export-one-page", isOnePage);
+
+  try {
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    await exportSearchablePdf({
+      element: dom.cvPreview,
+      fileName,
+      margins,
+      canvasScale: isOnePage ? 1.7 : 2
     });
+    setStatus(isOnePage ? "One-page PDF exported." : "PDF exported.");
+  } finally {
+    dom.cvPreview.classList.remove("pdf-export-mode", "pdf-export-one-page");
+  }
+}
+
+async function exportSearchablePdf({ element, fileName, margins, canvasScale }) {
+  const html2canvasLib = window.html2canvas || (typeof html2canvas !== "undefined" ? html2canvas : null);
+  const jsPdfLib = window.jspdf?.jsPDF || window.jsPDF || null;
+  if (!html2canvasLib || !jsPdfLib) {
+    throw new Error("PDF libraries are not loaded.");
+  }
+
+  const surfaceRect = element.getBoundingClientRect();
+  const fragments = collectPdfTextFragments(element);
+  const fullCanvas = await html2canvasLib(element, {
+    scale: canvasScale,
+    useCORS: true,
+    backgroundColor: "#ffffff"
+  });
+
+  const pdf = new jsPdfLib({ unit: "mm", format: "a4", orientation: "portrait" });
+  const pageWidthMm = pdf.internal.pageSize.getWidth();
+  const pageHeightMm = pdf.internal.pageSize.getHeight();
+  const contentWidthMm = pageWidthMm - margins.left - margins.right;
+  const contentHeightMm = pageHeightMm - margins.top - margins.bottom;
+  const mmPerPx = contentWidthMm / surfaceRect.width;
+  const pageHeightPx = contentHeightMm / mmPerPx;
+  const totalPages = Math.max(1, Math.ceil(surfaceRect.height / pageHeightPx));
+  const canvasPageHeightPx = pageHeightPx * canvasScale;
+
+  for (let pageIndex = 0; pageIndex < totalPages; pageIndex += 1) {
+    if (pageIndex > 0) pdf.addPage();
+    const startPx = pageIndex * pageHeightPx;
+    const remainingPx = Math.max(0, surfaceRect.height - startPx);
+    const sliceHeightPx = Math.min(pageHeightPx, remainingPx);
+
+    // Write selectable text first, then draw the visual image above it.
+    // This keeps the appearance identical while preserving text extraction/search.
+    renderPdfTextLayer(pdf, fragments, {
+      startPx,
+      sliceHeightPx,
+      margins,
+      mmPerPx
+    });
+
+    const pageCanvas = document.createElement("canvas");
+    pageCanvas.width = fullCanvas.width;
+    pageCanvas.height = Math.max(1, Math.round(sliceHeightPx * canvasScale));
+    const ctx = pageCanvas.getContext("2d");
+    if (!ctx) throw new Error("Could not create canvas context for PDF export.");
+
+    ctx.drawImage(
+      fullCanvas,
+      0,
+      Math.round(startPx * canvasScale),
+      fullCanvas.width,
+      Math.round(sliceHeightPx * canvasScale),
+      0,
+      0,
+      pageCanvas.width,
+      pageCanvas.height
+    );
+
+    const imgHeightMm = sliceHeightPx * mmPerPx;
+    pdf.addImage(
+      pageCanvas.toDataURL("image/jpeg", 0.98),
+      "JPEG",
+      margins.left,
+      margins.top,
+      contentWidthMm,
+      imgHeightMm,
+      undefined,
+      "FAST"
+    );
+  }
+
+  pdf.save(fileName);
+}
+
+function collectPdfTextFragments(container) {
+  const selectors = [
+    ".cv-name",
+    ".cv-title",
+    ".cv-section-title",
+    ".cv-entry-title",
+    ".cv-entry-meta",
+    ".cv-entry-date",
+    ".cv-paragraph",
+    ".cv-link",
+    ".cv-skill",
+    ".cv-language-name",
+    ".cv-language-level",
+    ".cv-list li",
+    ".cv-placeholder"
+  ].join(",");
+  const surfaceRect = container.getBoundingClientRect();
+  const nodes = [...container.querySelectorAll(selectors)];
+
+  return nodes
+    .map((node) => {
+      const text = normalizePdfText(node.textContent);
+      if (!text) return null;
+      const rect = node.getBoundingClientRect();
+      const style = window.getComputedStyle(node);
+      const fontSizePx = parseFloat(style.fontSize) || 12;
+      const weightValue = parseInt(style.fontWeight, 10);
+      const bold = Number.isFinite(weightValue) ? weightValue >= 600 : /bold/i.test(style.fontWeight);
+
+      return {
+        text,
+        xPx: Math.max(0, rect.left - surfaceRect.left),
+        yPx: Math.max(0, rect.top - surfaceRect.top),
+        widthPx: Math.max(0, rect.width),
+        heightPx: Math.max(fontSizePx * 1.2, rect.height),
+        fontSizePx,
+        bold
+      };
+    })
+    .filter(Boolean);
+}
+
+function normalizePdfText(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function renderPdfTextLayer(pdf, fragments, { startPx, sliceHeightPx, margins, mmPerPx }) {
+  fragments.forEach((fragment) => {
+    const bottomPx = fragment.yPx + fragment.heightPx;
+    if (bottomPx < startPx || fragment.yPx > startPx + sliceHeightPx) return;
+
+    const localYPx = fragment.yPx - startPx;
+    const xMm = margins.left + fragment.xPx * mmPerPx;
+    const yMm = margins.top + (localYPx + fragment.fontSizePx * 0.82) * mmPerPx;
+    const maxWidthMm = Math.max(10, fragment.widthPx * mmPerPx);
+    const fontSizePt = Math.max(7, fragment.fontSizePx * 0.75);
+
+    pdf.setFont("helvetica", fragment.bold ? "bold" : "normal");
+    pdf.setFontSize(fontSizePt);
+    pdf.setTextColor(0, 0, 0);
+    pdf.text(fragment.text, xMm, yMm, { maxWidth: maxWidthMm });
+  });
 }
 
 function exportJson() {
@@ -908,10 +1725,16 @@ function exportJson() {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = `${(state.fullName || "cv").trim().replace(/\s+/g, "_")}_data.json`;
+  anchor.download = `${buildExportBaseName()}_data.json`;
   anchor.click();
   URL.revokeObjectURL(url);
   setStatus("JSON exported.");
+}
+
+function buildExportBaseName() {
+  const raw = String(state.fullName || "cv").trim().replace(/\s+/g, "_");
+  const safe = raw.replace(/[^\w.-]/g, "");
+  return safe || "cv";
 }
 
 function importJsonFile(event) {
@@ -924,6 +1747,211 @@ function importJsonFile(event) {
   };
   reader.readAsText(file);
   event.target.value = "";
+}
+
+async function importExistingCvFile(event) {
+  const file = event.target.files?.[0];
+  event.target.value = "";
+  if (!file) return;
+
+  const importedJson = await tryImportStateJsonFile(file);
+  if (importedJson) return;
+
+  showToast("Reading CV file...", "info", 1500);
+
+  try {
+    const cvText = await extractCvTextFromFile(file);
+    if (!cvText.trim()) {
+      throw new Error("No readable text was found. If this is a scanned/image PDF, upload a DOCX/TXT or use JSON import.");
+    }
+
+    showToast("Extracting CV data with AI...", "info", 1500);
+    const parsed = await requestCvParseViaServer(cvText);
+
+    applyParsedCvData(parsed);
+    refreshUIFromState("Existing CV imported.");
+    showToast("CV imported successfully.", "success");
+  } catch (error) {
+    const message = error.message || "Unknown error.";
+    showToast(`CV import failed: ${message}`, "error", 5000);
+  }
+}
+
+async function tryImportStateJsonFile(file) {
+  const lowerName = String(file.name || "").toLowerCase();
+  const mime = String(file.type || "").toLowerCase();
+  const isJson = lowerName.endsWith(".json") || mime.includes("json");
+  if (!isJson) return false;
+
+  try {
+    const raw = await file.text();
+    const parsed = safeJsonParse(raw);
+    if (!parsed || typeof parsed !== "object") return false;
+
+    const looksLikeAppState = (
+      "design" in parsed ||
+      "sectionOrder" in parsed ||
+      "experience" in parsed ||
+      "education" in parsed ||
+      "projects" in parsed ||
+      "skills" in parsed
+    );
+    if (!looksLikeAppState) return false;
+
+    state = sanitizeState(parsed);
+    refreshUIFromState("CV JSON imported.");
+    showToast("CV JSON imported successfully.", "success");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function extractCvTextFromFile(file) {
+  const lowerName = String(file.name || "").toLowerCase();
+  const mime = String(file.type || "").toLowerCase();
+
+  if (lowerName.endsWith(".pdf") || mime.includes("pdf")) {
+    return extractPdfText(file);
+  }
+  if (lowerName.endsWith(".docx") || mime.includes("wordprocessingml")) {
+    return extractDocxText(file);
+  }
+  if (lowerName.endsWith(".doc")) {
+    throw new Error("Legacy .doc files are not supported. Please export as PDF or DOCX.");
+  }
+  return file.text();
+}
+
+async function extractPdfText(file) {
+  if (!window.pdfjsLib) {
+    throw new Error("PDF parser is not loaded.");
+  }
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
+
+  const arrayBuffer = await file.arrayBuffer();
+  const doc = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let text = "";
+  let extractedItems = 0;
+  for (let i = 1; i <= doc.numPages; i += 1) {
+    const page = await doc.getPage(i);
+    const content = await page.getTextContent();
+    extractedItems += content.items.length;
+    const pageText = content.items.map((item) => item.str).join(" ");
+    text += `${pageText}\n`;
+  }
+  if (!text.trim() && extractedItems === 0) {
+    throw new Error("This PDF appears image-based (no selectable text).");
+  }
+  return text;
+}
+
+async function extractDocxText(file) {
+  if (!window.mammoth?.extractRawText) {
+    throw new Error("DOCX parser is not loaded.");
+  }
+  const arrayBuffer = await file.arrayBuffer();
+  const result = await window.mammoth.extractRawText({ arrayBuffer });
+  return String(result.value || "");
+}
+
+async function requestCvParseViaServer(cvText) {
+  const response = await fetch(CV_PARSE_ENDPOINT, {
+    method: "POST",
+    headers: buildApiJsonHeaders(),
+    body: JSON.stringify({ cvText })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "Request failed.");
+  return data;
+}
+
+function parseModelJson(raw) {
+  const clean = raw.trim().replace(/^```json/i, "").replace(/^```/, "").replace(/```$/, "").trim();
+  try {
+    return JSON.parse(clean);
+  } catch {
+    throw new Error("AI response could not be parsed as JSON.");
+  }
+}
+
+function applyParsedCvData(parsed) {
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("Invalid parsed CV data.");
+  }
+
+  const normalized = sanitizeImportedCv(parsed);
+  state.fullName = normalized.fullName;
+  state.jobTitle = normalized.jobTitle;
+  state.linkedin = normalized.linkedin;
+  state.github = normalized.github;
+  state.summary = normalized.summary;
+
+  state.skills = normalized.skills;
+  state.languages = normalized.languages;
+  state.experience = normalized.experience;
+  state.education = normalized.education;
+  state.projects = normalized.projects;
+
+  state.customSections = [];
+  state.hiddenSections = [];
+  state.sectionOrder = [...BUILTIN_SECTION_KEYS];
+}
+
+function sanitizeImportedCv(candidate) {
+  const safe = candidate && typeof candidate === "object" ? candidate : {};
+
+  return {
+    fullName: String(safe.fullName || "").trim(),
+    jobTitle: String(safe.jobTitle || "").trim(),
+    linkedin: String(safe.linkedin || "").trim(),
+    github: String(safe.github || "").trim(),
+    summary: String(safe.summary || "").trim(),
+    skills: Array.isArray(safe.skills)
+      ? [...new Set(safe.skills.map((s) => String(s || "").trim()).filter(Boolean))].slice(0, 80)
+      : [],
+    languages: Array.isArray(safe.languages)
+      ? safe.languages.map((entry) => ({
+        id: uid("lang"),
+        name: String(entry?.name || "").trim(),
+        level: normalizeLanguageLevel(entry?.level)
+      })).filter((entry) => entry.name)
+      : [],
+    experience: Array.isArray(safe.experience)
+      ? safe.experience.map((entry) => ({
+        id: uid("exp"),
+        title: String(entry?.title || "").trim(),
+        company: String(entry?.company || "").trim(),
+        date: String(entry?.date || "").trim(),
+        description: String(entry?.description || "").trim()
+      })).filter((entry) => entry.title || entry.company || entry.date || entry.description)
+      : [],
+    education: Array.isArray(safe.education)
+      ? safe.education.map((entry) => ({
+        id: uid("edu"),
+        degree: String(entry?.degree || "").trim(),
+        school: String(entry?.school || "").trim(),
+        date: String(entry?.date || "").trim(),
+        description: String(entry?.description || "").trim()
+      })).filter((entry) => entry.degree || entry.school || entry.date || entry.description)
+      : [],
+    projects: Array.isArray(safe.projects)
+      ? safe.projects.map((entry) => ({
+        id: uid("proj"),
+        name: String(entry?.name || "").trim(),
+        stack: String(entry?.stack || "").trim(),
+        link: String(entry?.link || "").trim(),
+        achievements: String(entry?.achievements || "").trim()
+      })).filter((entry) => entry.name || entry.stack || entry.link || entry.achievements)
+      : []
+  };
+}
+
+function normalizeLanguageLevel(value) {
+  const level = String(value || "").toLowerCase();
+  if (LANGUAGE_LEVELS.some((item) => item.value === level)) return level;
+  return "b2";
 }
 
 function copyShareLink() {
@@ -953,7 +1981,9 @@ function refreshUIFromState(status) {
   hydrateInputs();
   renderAllEditors();
   applySectionOrderToEditor();
+  ensureBuiltinSectionDeleteButtons();
   initSortables();
+  attachAiEnhanceButtons();
   renderPreview();
   if (status) setStatus(status);
 }
@@ -967,6 +1997,7 @@ function loadInitialState() {
 function getDefaultState() {
   return {
     sectionOrder: [...BUILTIN_SECTION_KEYS],
+    hiddenSections: [],
     customSections: [],
     design: {
       template: "modern",
@@ -976,6 +2007,8 @@ function getDefaultState() {
     },
     fullName: "Alex Johnson",
     jobTitle: "Frontend Developer",
+    linkedin: "",
+    github: "",
     summary: "Detail-oriented frontend developer with experience building accessible, responsive web interfaces.",
     experience: [
       {
@@ -1015,6 +2048,7 @@ function getDefaultState() {
 function sanitizeState(candidate) {
   const fallback = getDefaultState();
   if (!candidate || typeof candidate !== "object") return fallback;
+  const hiddenSections = normalizeHiddenSections(candidate.hiddenSections);
 
   const customSections = Array.isArray(candidate.customSections)
     ? candidate.customSections.map(normalizeCustomSection).filter(Boolean)
@@ -1026,6 +2060,7 @@ function sanitizeState(candidate) {
     : [];
 
   BUILTIN_SECTION_KEYS.forEach((key) => {
+    if (hiddenSections.includes(key)) return;
     if (!sectionOrder.includes(key)) sectionOrder.push(key);
   });
   customSections.forEach((section) => {
@@ -1034,10 +2069,13 @@ function sanitizeState(candidate) {
 
   return {
     sectionOrder,
+    hiddenSections,
     customSections,
     design: normalizeDesign(candidate.design, fallback.design),
     fullName: String(candidate.fullName ?? fallback.fullName),
     jobTitle: String(candidate.jobTitle ?? fallback.jobTitle),
+    linkedin: String(candidate.linkedin ?? fallback.linkedin),
+    github: String(candidate.github ?? fallback.github),
     summary: String(candidate.summary ?? fallback.summary),
     experience: normalizeArray(candidate.experience, normalizeExperience, fallback.experience),
     education: normalizeArray(candidate.education, normalizeEducation, fallback.education),
@@ -1059,7 +2097,7 @@ function normalizeSkills(value, fallback) {
 
 function normalizeDesign(design, fallback) {
   if (!design || typeof design !== "object") return fallback;
-  const allowedTemplates = ["modern", "classic", "minimal"];
+  const allowedTemplates = ["modern", "classic", "minimal", "executive", "creative"];
   const allowedFonts = ["jakarta", "lato", "nunito"];
   return {
     template: allowedTemplates.includes(design.template) ? design.template : fallback.template,
@@ -1067,6 +2105,44 @@ function normalizeDesign(design, fallback) {
     font: allowedFonts.includes(design.font) ? design.font : fallback.font,
     atsMode: Boolean(design.atsMode)
   };
+}
+
+function normalizeHiddenSections(value) {
+  if (!Array.isArray(value)) return [];
+  return value.filter((section) => BUILTIN_SECTION_KEYS.includes(section));
+}
+
+function initToastService() {
+  if (toastHost) return;
+  toastHost = document.createElement("div");
+  toastHost.className = "toast-stack";
+  toastHost.setAttribute("aria-live", "polite");
+  toastHost.setAttribute("aria-atomic", "true");
+  document.body.appendChild(toastHost);
+}
+
+function showToast(message, type = "info", duration = 3200) {
+  if (!message) return;
+  if (!toastHost) initToastService();
+
+  const toast = document.createElement("div");
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  toastHost.appendChild(toast);
+
+  requestAnimationFrame(() => {
+    toast.classList.add("show");
+  });
+
+  window.setTimeout(() => dismissToast(toast), duration);
+}
+
+function dismissToast(toast) {
+  if (!toast || !toast.parentElement) return;
+  toast.classList.remove("show");
+  window.setTimeout(() => {
+    if (toast.parentElement) toast.parentElement.removeChild(toast);
+  }, 180);
 }
 
 function uniqueValidSections(order, validSections) {
@@ -1149,6 +2225,13 @@ function getLanguageLevel(value) {
   return LANGUAGE_LEVELS.find((item) => item.value === value) || LANGUAGE_LEVELS[3];
 }
 
+function normalizeExternalUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "#";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  return `https://${raw}`;
+}
+
 function setStatus(message) {
   dom.statusMessage.textContent = message;
   window.clearTimeout(setStatus.timeoutId);
@@ -1179,3 +2262,17 @@ function escapeHtml(value) {
 function escapeAttr(value) {
   return escapeHtml(value).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -17,9 +17,16 @@
         <div class="header-actions">
           <button id="saveBtn" type="button">Save Draft</button>
           <button id="loadBtn" type="button">Load Draft</button>
+          <button id="importExistingCvBtn" type="button">Import Existing CV</button>
+          <button id="aiCreateCvBtn" type="button">Create with AI</button>
           <button id="exportJsonBtn" type="button">Export JSON</button>
           <button id="importJsonBtn" type="button">Import JSON</button>
           <button id="shareLinkBtn" type="button">Copy Share Link</button>
+          <button id="coverLetterBtn" type="button">Cover Letter</button>
+          <select id="pdfExportModeSelect" class="pdf-export-mode-select" title="PDF export mode">
+            <option value="normal">Normal PDF</option>
+            <option value="one-page">One Page (Compressed)</option>
+          </select>
           <button id="exportPdfBtn" type="button" class="primary">Export PDF</button>
         </div>
       </header>
@@ -27,6 +34,7 @@
       <p id="statusMessage" class="status-message" aria-live="polite"></p>
 
       <input id="importJsonFile" type="file" accept="application/json" hidden>
+      <input id="existingCvFileInput" type="file" accept=".pdf,.doc,.docx,.txt,.md,.rtf,.json" hidden>
 
       <section class="design-controls">
         <h2>Design Settings</h2>
@@ -37,6 +45,8 @@
               <option value="modern">Modern</option>
               <option value="classic">Classic</option>
               <option value="minimal">Minimal</option>
+              <option value="executive">Executive</option>
+              <option value="creative">Creative</option>
             </select>
           </label>
           <label>
@@ -54,6 +64,14 @@
           <label class="ats-toggle">
             <input id="atsModeToggle" type="checkbox">
             ATS Mode
+          </label>
+          <label class="groq-key-setting">
+            Groq API Key (Optional)
+            <input id="groqApiKeyInput" type="password" placeholder="gsk_...">
+            <small>
+              Add your own key to use your Groq account.
+              <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer">Get a key</a>
+            </small>
           </label>
         </div>
       </section>
@@ -78,6 +96,17 @@
             <span class="drag-handle" title="Drag section">::</span>
           </div>
           <input id="jobTitleInput" data-field="jobTitle" type="text" placeholder="e.g., Frontend Developer">
+        </section>
+
+        <section class="editor-card" data-section="links">
+          <div class="card-header">
+            <h2>Links</h2>
+            <span class="drag-handle" title="Drag section">::</span>
+          </div>
+          <div class="field-row">
+            <input id="linkedinInput" data-field="linkedin" type="text" placeholder="LinkedIn URL">
+            <input id="githubInput" data-field="github" type="text" placeholder="GitHub URL">
+          </div>
         </section>
 
         <section class="editor-card" data-section="summary">
@@ -152,8 +181,69 @@
     </section>
   </main>
 
+  <div id="coverLetterModal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="coverLetterTitle">
+      <div class="modal-header">
+        <h2 id="coverLetterTitle">AI Cover Letter</h2>
+        <button id="closeCoverLetterModalBtn" type="button" class="modal-close-btn" aria-label="Close">x</button>
+      </div>
+      <p class="modal-note">Paste the job description, then generate a tailored cover letter from your CV.</p>
+      <label class="modal-label" for="jobDescriptionInput">Job Description</label>
+      <textarea id="jobDescriptionInput" rows="7" placeholder="Paste the full job description here..."></textarea>
+      <div class="modal-actions">
+        <button id="generateCoverLetterBtn" type="button" class="primary">Generate</button>
+        <button id="copyCoverLetterBtn" type="button">Copy Letter</button>
+      </div>
+      <label class="modal-label" for="coverLetterOutput">Generated Cover Letter</label>
+      <textarea id="coverLetterOutput" rows="12" placeholder="Your generated cover letter will appear here..."></textarea>
+    </div>
+  </div>
+
+  <div id="aiCreateModal" class="modal-overlay" hidden>
+    <div class="modal-card ai-create-modal-card" role="dialog" aria-modal="true" aria-labelledby="aiCreateTitle">
+      <div class="modal-header">
+        <h2 id="aiCreateTitle">Create CV from Scratch (AI)</h2>
+        <button id="closeAiCreateModalBtn" type="button" class="modal-close-btn" aria-label="Close">x</button>
+      </div>
+      <p class="modal-note">Answer a few focused questions, then we will generate a complete editable CV draft.</p>
+      <div class="ai-create-progress-wrap">
+        <div id="aiCreateProgressText" class="ai-create-progress-text"></div>
+        <div class="ai-create-progress-bar">
+          <span id="aiCreateProgressFill"></span>
+        </div>
+      </div>
+      <label class="modal-label" id="aiCreateQuestionLabel" for="aiCreateAnswerInput">Question</label>
+      <textarea id="aiCreateAnswerInput" rows="5" placeholder="Type your answer..."></textarea>
+      <select id="aiCreateAnswerSelect" hidden></select>
+      <div class="modal-actions ai-create-actions">
+        <button id="aiCreateBackBtn" type="button">Back</button>
+        <button id="aiCreateNextBtn" type="button">Next</button>
+        <button id="aiCreateGenerateBtn" type="button" class="primary">Generate CV</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="floating-actions">
+    <button id="fabToggleBtn" type="button" class="fab-toggle-btn" aria-label="Open quick actions" aria-expanded="false">+</button>
+    <div id="fabMenu" class="fab-menu">
+      <button type="button" data-fab-target="saveBtn">Save Draft</button>
+      <button type="button" data-fab-target="loadBtn">Load Draft</button>
+      <button type="button" data-fab-target="importExistingCvBtn">Import Existing CV</button>
+      <button type="button" data-fab-target="aiCreateCvBtn">Create with AI</button>
+      <button type="button" data-fab-target="exportJsonBtn">Export JSON</button>
+      <button type="button" data-fab-target="importJsonBtn">Import JSON</button>
+      <button type="button" data-fab-target="shareLinkBtn">Copy Share Link</button>
+      <button type="button" data-fab-target="coverLetterBtn">Cover Letter</button>
+      <button type="button" data-fab-target="exportPdfBtn">Export PDF</button>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+  <script src="https://unpkg.com/mammoth@1.8.0/mammoth.browser.min.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
