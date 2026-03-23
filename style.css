@@ -340,6 +340,18 @@ textarea {
   margin-bottom: 0.6rem;
 }
 
+.field-row-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+}
+
+.field-row-inline > * {
+  flex: 1 1 calc(50% - 0.3rem);
+  min-width: 160px;
+}
+
 .field-row + textarea {
   margin-top: 0;
 }
@@ -566,8 +578,9 @@ textarea {
 
 .cv-social-links {
   display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
 }
 
 .cv-placeholder {

@@ -41,6 +41,8 @@ const dom = {
   jobTitleInput: document.getElementById("jobTitleInput"),
   linkedinInput: document.getElementById("linkedinInput"),
   githubInput: document.getElementById("githubInput"),
+  emailInput: document.getElementById("emailInput"),
+  phoneInput: document.getElementById("phoneInput"),
   summaryInput: document.getElementById("summaryInput"),
   customSectionTitleInput: document.getElementById("customSectionTitleInput"),
   addCustomSectionBtn: document.getElementById("addCustomSectionBtn"),
@@ -128,6 +130,16 @@ function bindEvents() {
 
   dom.githubInput.addEventListener("input", (event) => {
     state.github = event.target.value;
+    persistAndRenderPreview();
+  });
+
+  dom.emailInput.addEventListener("input", (event) => {
+    state.email = event.target.value;
+    persistAndRenderPreview();
+  });
+
+  dom.phoneInput.addEventListener("input", (event) => {
+    state.phone = event.target.value;
     persistAndRenderPreview();
   });
 
@@ -482,6 +494,8 @@ function hydrateInputs() {
   dom.jobTitleInput.value = state.jobTitle;
   dom.linkedinInput.value = state.linkedin;
   dom.githubInput.value = state.github;
+  dom.emailInput.value = state.email;
+  dom.phoneInput.value = state.phone;
   dom.summaryInput.value = state.summary;
   dom.templateSelect.value = state.design.template;
   dom.accentColorInput.value = state.design.accentColor;
@@ -1020,7 +1034,7 @@ function buildDefaultAiCreateAnswers() {
     targetRole: String(state.jobTitle || "").trim(),
     templatePreference: state.design?.template || "modern",
     tone: "professional",
-    links: [state.linkedin, state.github].filter(Boolean).join(", ")
+    links: [state.linkedin, state.github, state.email, state.phone].filter(Boolean).join(", ")
   };
 }
 
@@ -1146,6 +1160,8 @@ function buildCvContextForAi() {
     jobTitle: state.jobTitle,
     linkedin: state.linkedin,
     github: state.github,
+    email: state.email,
+    phone: state.phone,
     summary: state.summary,
     experience: state.experience,
     education: state.education,
@@ -1264,11 +1280,13 @@ function renderPreviewSection(sectionKey) {
     wrapper.className = "cv-section";
     const links = [
       { label: "LinkedIn", value: state.linkedin },
-      { label: "GitHub", value: state.github }
+      { label: "GitHub", value: state.github },
+      { label: "Email", value: state.email },
+      { label: "Phone", value: state.phone }
     ].filter((item) => String(item.value || "").trim());
 
     if (!links.length) {
-      appendPlaceholder(wrapper, "Add LinkedIn and GitHub links.");
+      appendPlaceholder(wrapper, "Add LinkedIn, GitHub, email, or phone.");
       return wrapper;
     }
 
@@ -1277,10 +1295,17 @@ function renderPreviewSection(sectionKey) {
     links.forEach((item) => {
       const link = document.createElement("a");
       link.className = "cv-link";
-      link.href = normalizeExternalUrl(item.value);
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      link.textContent = `${item.label}: ${item.value}`;
+      const val = String(item.value || "").trim();
+      if (item.label === "Email") {
+        link.href = `mailto:${val}`;
+      } else if (item.label === "Phone") {
+        link.href = `tel:${val}`;
+      } else {
+        link.href = normalizeExternalUrl(val);
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+      }
+      link.textContent = `${item.label}: ${val}`;
       linksWrap.appendChild(link);
     });
     wrapper.appendChild(linksWrap);
@@ -1886,6 +1911,8 @@ function applyParsedCvData(parsed) {
   state.jobTitle = normalized.jobTitle;
   state.linkedin = normalized.linkedin;
   state.github = normalized.github;
+  state.email = normalized.email;
+  state.phone = normalized.phone;
   state.summary = normalized.summary;
 
   state.skills = normalized.skills;
@@ -1907,6 +1934,8 @@ function sanitizeImportedCv(candidate) {
     jobTitle: String(safe.jobTitle || "").trim(),
     linkedin: String(safe.linkedin || "").trim(),
     github: String(safe.github || "").trim(),
+    email: String(safe.email || "").trim(),
+    phone: String(safe.phone || "").trim(),
     summary: String(safe.summary || "").trim(),
     skills: Array.isArray(safe.skills)
       ? [...new Set(safe.skills.map((s) => String(s || "").trim()).filter(Boolean))].slice(0, 80)
@@ -2009,6 +2038,8 @@ function getDefaultState() {
     jobTitle: "Frontend Developer",
     linkedin: "",
     github: "",
+    email: "",
+    phone: "",
     summary: "Detail-oriented frontend developer with experience building accessible, responsive web interfaces.",
     experience: [
       {
@@ -2076,6 +2107,8 @@ function sanitizeState(candidate) {
     jobTitle: String(candidate.jobTitle ?? fallback.jobTitle),
     linkedin: String(candidate.linkedin ?? fallback.linkedin),
     github: String(candidate.github ?? fallback.github),
+    email: String(candidate.email ?? fallback.email),
+    phone: String(candidate.phone ?? fallback.phone),
     summary: String(candidate.summary ?? fallback.summary),
     experience: normalizeArray(candidate.experience, normalizeExperience, fallback.experience),
     education: normalizeArray(candidate.education, normalizeEducation, fallback.education),
