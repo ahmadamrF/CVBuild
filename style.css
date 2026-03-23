@@ -580,8 +580,9 @@ textarea {
 
 .cv-social-links {
   display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.25rem;
 }
 
 .cv-placeholder {
