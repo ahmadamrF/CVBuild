@@ -39,6 +39,8 @@ let aiCreateAnswers = {};
 const dom = {
   fullNameInput: document.getElementById("fullNameInput"),
   jobTitleInput: document.getElementById("jobTitleInput"),
+  emailInput: document.getElementById("emailInput"),
+  mobileInput: document.getElementById("mobileInput"),
   linkedinInput: document.getElementById("linkedinInput"),
   githubInput: document.getElementById("githubInput"),
   summaryInput: document.getElementById("summaryInput"),
@@ -128,6 +130,16 @@ function bindEvents() {
 
   dom.githubInput.addEventListener("input", (event) => {
     state.github = event.target.value;
+    persistAndRenderPreview();
+  });
+
+  dom.emailInput.addEventListener("input", (event) => {
+    state.email = event.target.value;
+    persistAndRenderPreview();
+  });
+
+  dom.mobileInput.addEventListener("input", (event) => {
+    state.mobile = event.target.value;
     persistAndRenderPreview();
   });
 
@@ -480,6 +492,8 @@ function handleEditorClicks(event) {
 function hydrateInputs() {
   dom.fullNameInput.value = state.fullName;
   dom.jobTitleInput.value = state.jobTitle;
+  dom.emailInput.value = state.email;
+  dom.mobileInput.value = state.mobile;
   dom.linkedinInput.value = state.linkedin;
   dom.githubInput.value = state.github;
   dom.summaryInput.value = state.summary;
@@ -1262,24 +1276,34 @@ function renderPreviewSection(sectionKey) {
   if (sectionKey === "links") {
     const wrapper = document.createElement("section");
     wrapper.className = "cv-section";
-    const links = [
-      { label: "LinkedIn", value: state.linkedin },
-      { label: "GitHub", value: state.github }
-    ].filter((item) => String(item.value || "").trim());
+    const emailVal = String(state.email || "").trim();
+    const mobileVal = String(state.mobile || "").trim();
+    const contactItems = [
+      emailVal && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal)
+        ? { label: "Email", value: emailVal, href: `mailto:${emailVal}` }
+        : null,
+      mobileVal && /^[+\d\s()./-]{1,20}$/.test(mobileVal)
+        ? { label: "Mobile", value: mobileVal, href: `tel:${mobileVal.replace(/[^\d+]/g, "")}` }
+        : null,
+      { label: "LinkedIn", value: state.linkedin, href: normalizeExternalUrl(state.linkedin) },
+      { label: "GitHub", value: state.github, href: normalizeExternalUrl(state.github) }
+    ].filter((item) => item && String(item.value || "").trim());
 
-    if (!links.length) {
-      appendPlaceholder(wrapper, "Add LinkedIn and GitHub links.");
+    if (!contactItems.length) {
+      appendPlaceholder(wrapper, "Add email, mobile, LinkedIn, and GitHub links.");
       return wrapper;
     }
 
     const linksWrap = document.createElement("div");
     linksWrap.className = "cv-social-links";
-    links.forEach((item) => {
+    contactItems.forEach((item) => {
       const link = document.createElement("a");
       link.className = "cv-link";
-      link.href = normalizeExternalUrl(item.value);
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
+      link.href = item.href;
+      if (item.label === "LinkedIn" || item.label === "GitHub") {
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+      }
       link.textContent = `${item.label}: ${item.value}`;
       linksWrap.appendChild(link);
     });
@@ -2007,6 +2031,8 @@ function getDefaultState() {
     },
     fullName: "Alex Johnson",
     jobTitle: "Frontend Developer",
+    email: "",
+    mobile: "",
     linkedin: "",
     github: "",
     summary: "Detail-oriented frontend developer with experience building accessible, responsive web interfaces.",
@@ -2074,6 +2100,8 @@ function sanitizeState(candidate) {
     design: normalizeDesign(candidate.design, fallback.design),
     fullName: String(candidate.fullName ?? fallback.fullName),
     jobTitle: String(candidate.jobTitle ?? fallback.jobTitle),
+    email: String(candidate.email ?? fallback.email),
+    mobile: String(candidate.mobile ?? fallback.mobile),
     linkedin: String(candidate.linkedin ?? fallback.linkedin),
     github: String(candidate.github ?? fallback.github),
     summary: String(candidate.summary ?? fallback.summary),
