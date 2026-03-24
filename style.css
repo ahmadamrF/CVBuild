@@ -558,6 +558,20 @@ textarea {
 .cv-link {
   color: var(--cv-accent);
   text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+}
+
+.cv-link-icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.cv-link-icon svg {
+  width: 0.9em;
+  height: 0.9em;
 }
 
 .cv-link:hover {
@@ -566,8 +580,9 @@ textarea {
 
 .cv-social-links {
   display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.25rem;
 }
 
 .cv-placeholder {
