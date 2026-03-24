@@ -23,12 +23,18 @@ export async function onRequestPost(context) {
 
   const model = env.GROQ_MODEL || "llama-3.1-8b-instant";
   const systemPrompt = [
-    "Extract structured CV data from raw resume text.",
-    "Return strict JSON only (no markdown, no code fences).",
-    "Do not invent details.",
-    "Use this schema keys:",
-    "fullName, jobTitle, linkedin, github, summary, skills, languages, experience, education, projects.",
-    "languages is array of {name, level} where level is one of: native,c2,c1,b2,b1,a2,a1 when available.",
+    "You are a deterministic CV transcription engine.",
+    "Task: map raw resume text to structured JSON without rewriting.",
+    "Return strict JSON only (no markdown, no code fences, no commentary).",
+    "Extraction rules:",
+    "1) Copy wording exactly from source whenever possible.",
+    "2) Do NOT paraphrase, enhance, translate, summarize, or polish text.",
+    "3) Do NOT invent details, dates, metrics, tools, or companies.",
+    "4) If a field is missing, use empty string or empty array.",
+    "5) Keep original casing and punctuation.",
+    "Schema keys:",
+    "fullName, jobTitle, email, mobile, location, linkedin, github, summary, skills, languages, experience, education, projects.",
+    "languages is array of {name, level} where level is one of: native,c2,c1,b2,b1,a2,a1 when explicitly stated.",
     "experience: {title, company, date, description}",
     "education: {degree, school, date, description}",
     "projects: {name, stack, link, achievements}"
@@ -42,7 +48,7 @@ export async function onRequestPost(context) {
     },
     body: JSON.stringify({
       model,
-      temperature: 0.1,
+      temperature: 0,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: cvText.slice(0, 25000) }

@@ -402,7 +402,7 @@ textarea {
   display: flex;
   flex-direction: column;
   padding: 1.4rem;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .preview-header {
@@ -417,8 +417,20 @@ textarea {
   font-size: 1.2rem;
 }
 
+.preview-toggle-btn {
+  display: none;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--text);
+  border-radius: 999px;
+  padding: 0.36rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .preview-scroll {
-  overflow: auto;
+  overflow: visible;
   padding: 0.25rem;
 }
 
@@ -921,6 +933,82 @@ textarea {
   gap: 0.5rem 0.9rem;
 }
 
+.cv-paper.template-split {
+  border: 1px solid #d8e1ea;
+  border-radius: 14px;
+  box-shadow: 0 14px 28px rgba(25, 40, 56, 0.08);
+  background: linear-gradient(180deg, rgba(240, 246, 252, 0.92) 0 150px, #ffffff 150px 100%);
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(220px, 1fr);
+  gap: 0.85rem 1.35rem;
+}
+
+.template-split .cv-section {
+  margin-bottom: 0.35rem;
+}
+
+.template-split .cv-section[data-preview-section="fullName"] {
+  grid-column: 1;
+  margin-bottom: 0;
+  padding-bottom: 0.15rem;
+}
+
+.template-split .cv-section[data-preview-section="jobTitle"] {
+  grid-column: 1;
+  margin-top: -0.6rem;
+  margin-bottom: 0.4rem;
+}
+
+.template-split .cv-section[data-preview-section="links"] {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: start;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid #d7e5f1;
+  border-radius: 12px;
+  padding: 0.7rem;
+}
+
+.template-split .cv-section[data-preview-section="summary"],
+.template-split .cv-section[data-preview-section="experience"],
+.template-split .cv-section[data-preview-section="projects"] {
+  grid-column: 1;
+}
+
+.template-split .cv-section[data-preview-section="education"],
+.template-split .cv-section[data-preview-section="languages"],
+.template-split .cv-section[data-preview-section="skills"] {
+  grid-column: 2;
+}
+
+.template-split .cv-section-title {
+  font-size: 0.74rem;
+  letter-spacing: 0.14em;
+  margin-bottom: 0.45rem;
+}
+
+.template-split .cv-social-links {
+  gap: 0.35rem;
+}
+
+.template-split .cv-link {
+  font-size: 0.83rem;
+}
+
+.template-split .cv-entry {
+  margin-bottom: 0.45rem;
+}
+
+.template-split .cv-skills {
+  gap: 0.3rem;
+}
+
+.template-split .cv-skill {
+  border-radius: 8px;
+  font-size: 0.74rem;
+  padding: 0.14rem 0.5rem;
+}
+
 .cv-paper.ats-mode {
   box-shadow: none;
   border: 1px solid #d0d6dc;
@@ -1047,6 +1135,35 @@ textarea {
     padding: 1.2rem;
   }
 
+  .cv-paper.template-split {
+    grid-template-columns: 1fr;
+    gap: 0.65rem;
+  }
+
+  .template-split .cv-section[data-preview-section="fullName"],
+  .template-split .cv-section[data-preview-section="jobTitle"],
+  .template-split .cv-section[data-preview-section="links"],
+  .template-split .cv-section[data-preview-section="summary"],
+  .template-split .cv-section[data-preview-section="experience"],
+  .template-split .cv-section[data-preview-section="projects"],
+  .template-split .cv-section[data-preview-section="education"],
+  .template-split .cv-section[data-preview-section="languages"],
+  .template-split .cv-section[data-preview-section="skills"] {
+    grid-column: 1;
+    grid-row: auto;
+    margin-top: 0;
+  }
+
+  .preview-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .preview-panel.is-collapsed .preview-scroll {
+    display: none;
+  }
+
   .toast-stack {
     top: 0.75rem;
     right: 0.75rem;
@@ -1061,5 +1178,19 @@ textarea {
   .fab-toggle-btn {
     width: 50px;
     height: 50px;
+  }
+}
+
+@media (min-width: 641px) {
+  .preview-panel.is-collapsed .preview-scroll {
+    display: block !important;
+  }
+
+  .preview-panel {
+    overflow-y: visible;
+  }
+
+  .preview-scroll {
+    overflow: visible;
   }
 }
