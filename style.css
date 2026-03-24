@@ -1114,6 +1114,11 @@ textarea {
     padding: 1rem;
   }
 
+  .editor-panel {
+    max-height: none;
+    overflow: visible;
+  }
+
   .preview-panel {
     align-self: start;
     overflow: visible;
