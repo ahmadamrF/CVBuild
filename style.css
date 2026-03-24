@@ -1122,6 +1122,7 @@ textarea {
   .preview-panel {
     align-self: start;
     overflow: visible;
+    margin-top: 0.9rem;
   }
 
   .field-row {
