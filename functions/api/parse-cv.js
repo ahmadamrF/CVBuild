@@ -32,15 +32,13 @@ export async function onRequestPost(context) {
     "3) Do NOT invent details, dates, metrics, tools, or companies.",
     "4) If a field is missing, use empty string or empty array.",
     "5) Keep original casing and punctuation.",
-    "6) For experience.description and projects.achievements, output newline bullet format with each line starting '- '.",
-    "7) Preserve source order and facts; do not add new claims.",
-    "8) If source is paragraph text, split it into concise factual bullets from the same text.",
+    "6) Preserve source order and facts; do not add new claims.",
     "Schema keys:",
     "fullName, jobTitle, email, mobile, location, linkedin, github, summary, skills, languages, experience, education, projects.",
     "languages is array of {name, level} where level is one of: native,c2,c1,b2,b1,a2,a1 when explicitly stated.",
-    "experience: {title, company, date, description} where description is bullet lines ('- item\\n- item').",
+    "experience: {title, company, date, description}",
     "education: {degree, school, date, description}",
-    "projects: {name, stack, link, achievements} where achievements is bullet lines ('- item\\n- item')."
+    "projects: {name, stack, link, achievements}"
   ].join(" ");
 
   const upstream = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -68,7 +66,7 @@ export async function onRequestPost(context) {
   const raw = String(data?.choices?.[0]?.message?.content || "");
   try {
     const parsed = parseModelJson(raw);
-    return json(parsed);
+    return json(normalizeParsedCv(parsed));
   } catch (error) {
     return json(
       { error: error.message || "AI response could not be parsed as JSON." },
@@ -99,6 +97,52 @@ function json(payload, init = {}) {
       ...(init.headers || {})
     }
   });
+}
+
+function normalizeParsedCv(parsed) {
+  const safe = parsed && typeof parsed === "object" ? { ...parsed } : {};
+
+  safe.experience = Array.isArray(safe.experience)
+    ? safe.experience.map((entry) => ({
+      ...(entry && typeof entry === "object" ? entry : {}),
+      description: toBulletLines(entry?.description)
+    }))
+    : [];
+
+  safe.projects = Array.isArray(safe.projects)
+    ? safe.projects.map((entry) => ({
+      ...(entry && typeof entry === "object" ? entry : {}),
+      achievements: toBulletLines(entry?.achievements)
+    }))
+    : [];
+
+  return safe;
+}
+
+function toBulletLines(value) {
+  const raw = String(value || "").replace(/\r/g, "").trim();
+  if (!raw) return "";
+
+  let text = raw
+    .replace(/\s*,\s*(?=-\s+)/g, "\n")
+    .replace(/^\s*[•*]\s+/gm, "- ")
+    .replace(/^\s*\d+[.)]\s+/gm, "- ")
+    .replace(/^\s*-\s*/gm, "- ");
+
+  const lines = text.split("\n").map((line) => line.trim()).filter(Boolean);
+  if (!lines.length) return "";
+
+  const items = lines.map((line) => (
+    line.startsWith("- ")
+      ? line.slice(2).trim()
+      : line.trim()
+  )).filter(Boolean);
+
+  return items
+    .map((item) => item.replace(/\s+/g, " ").replace(/^[,;]+|[,;]+$/g, "").trim())
+    .filter(Boolean)
+    .map((item) => `- ${item}`)
+    .join("\n");
 }
 
 function resolveApiKey(request, env) {
