@@ -32,12 +32,15 @@ export async function onRequestPost(context) {
     "3) Do NOT invent details, dates, metrics, tools, or companies.",
     "4) If a field is missing, use empty string or empty array.",
     "5) Keep original casing and punctuation.",
+    "6) For experience.description and projects.achievements, output newline bullet format with each line starting '- '.",
+    "7) Preserve source order and facts; do not add new claims.",
+    "8) If source is paragraph text, split it into concise factual bullets from the same text.",
     "Schema keys:",
     "fullName, jobTitle, email, mobile, location, linkedin, github, summary, skills, languages, experience, education, projects.",
     "languages is array of {name, level} where level is one of: native,c2,c1,b2,b1,a2,a1 when explicitly stated.",
-    "experience: {title, company, date, description}",
+    "experience: {title, company, date, description} where description is bullet lines ('- item\\n- item').",
     "education: {degree, school, date, description}",
-    "projects: {name, stack, link, achievements}"
+    "projects: {name, stack, link, achievements} where achievements is bullet lines ('- item\\n- item')."
   ].join(" ");
 
   const upstream = await fetch("https://api.groq.com/openai/v1/chat/completions", {
