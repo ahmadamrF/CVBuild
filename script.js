@@ -414,8 +414,23 @@ function setActiveWorkspace(workspace, options = {}) {
 
 function syncWorkspaceUiForViewport() {
   const mobile = isMobileWorkspaceViewport();
-  const paneKey = activeWorkspace === "preview" ? "content" : activeWorkspace;
 
+  if (!mobile) {
+    document.querySelectorAll("[data-workspace-pane]").forEach((pane) => {
+      pane.classList.add("is-active");
+    });
+    document.querySelectorAll("[data-workspace-tab]").forEach((tab) => {
+      tab.classList.remove("is-active");
+    });
+    document.querySelectorAll("[data-mobile-workspace]").forEach((button) => {
+      button.classList.toggle("is-active", button.dataset.mobileWorkspace === "preview");
+    });
+    document.body.classList.remove("editor-sheet-open");
+    dom.editorPanel?.removeAttribute("aria-hidden");
+    return;
+  }
+
+  const paneKey = activeWorkspace === "preview" ? "content" : activeWorkspace;
   document.querySelectorAll("[data-workspace-pane]").forEach((pane) => {
     pane.classList.toggle("is-active", pane.dataset.workspacePane === paneKey);
   });
@@ -425,12 +440,6 @@ function syncWorkspaceUiForViewport() {
   document.querySelectorAll("[data-mobile-workspace]").forEach((button) => {
     button.classList.toggle("is-active", button.dataset.mobileWorkspace === activeWorkspace);
   });
-
-  if (!mobile) {
-    document.body.classList.remove("editor-sheet-open");
-    dom.editorPanel?.removeAttribute("aria-hidden");
-    return;
-  }
 
   const openEditorSheet = activeWorkspace !== "preview";
   document.body.classList.toggle("editor-sheet-open", openEditorSheet);
