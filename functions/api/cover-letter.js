@@ -20,14 +20,16 @@ export async function onRequestPost(context) {
   if (!jobDescription) {
     return json({ error: "Job description is required." }, { status: 400 });
   }
+  const style = String(body?.style || "balanced").trim().toLowerCase();
 
   const cvData = body?.cv && typeof body.cv === "object" ? body.cv : {};
   const model = env.GROQ_MODEL || "llama-3.1-8b-instant";
+  const styleInstruction = getCoverLetterStyleInstruction(style);
 
   const systemPrompt = [
     "You write tailored, truthful cover letters based on CV data and a job description.",
     "Do not invent experience, metrics, companies, skills, or certifications.",
-    "Keep the tone professional and concise.",
+    styleInstruction,
     "Output plain text only with no markdown."
   ].join(" ");
 
@@ -83,6 +85,16 @@ function resolveApiKey(request, env) {
   const userKey = String(request.headers.get("x-groq-api-key") || "").trim();
   if (userKey) return userKey;
   return String(env.GROQ_API_KEY || "").trim();
+}
+
+function getCoverLetterStyleInstruction(style) {
+  const instructions = {
+    balanced: "Keep the tone professional and concise with natural flow.",
+    shorter: "Write a shorter version in 1 short paragraph (about 90-140 words).",
+    professional: "Use a formal, highly professional tone and polished business language.",
+    friendly: "Use a warm, friendly, approachable tone while still professional."
+  };
+  return instructions[style] || instructions.balanced;
 }
 
 

@@ -86,6 +86,7 @@ const dom = {
   coverLetterModal: document.getElementById("coverLetterModal"),
   closeCoverLetterModalBtn: document.getElementById("closeCoverLetterModalBtn"),
   jobDescriptionInput: document.getElementById("jobDescriptionInput"),
+  coverLetterStyleSelect: document.getElementById("coverLetterStyleSelect"),
   generateCoverLetterBtn: document.getElementById("generateCoverLetterBtn"),
   copyCoverLetterBtn: document.getElementById("copyCoverLetterBtn"),
   coverLetterOutput: document.getElementById("coverLetterOutput"),
@@ -993,6 +994,7 @@ function closeCoverLetterModal() {
 
 async function generateCoverLetter() {
   const jobDescription = String(dom.jobDescriptionInput.value || "").trim();
+  const style = String(dom.coverLetterStyleSelect?.value || "balanced").trim();
   if (!jobDescription) {
     showToast("Add the job description first.", "info");
     dom.jobDescriptionInput.focus();
@@ -1005,7 +1007,7 @@ async function generateCoverLetter() {
   showToast("Generating cover letter...", "info", 1500);
 
   try {
-    const payload = { jobDescription, cv: buildCvContextForAi() };
+    const payload = { jobDescription, style, cv: buildCvContextForAi() };
     const letter = await requestCoverLetterViaServer(payload);
     if (!letter) throw new Error("No cover letter text returned.");
     dom.coverLetterOutput.value = letter;

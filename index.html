@@ -208,6 +208,13 @@
       <p class="modal-note">Paste the job description, then generate a tailored cover letter from your CV.</p>
       <label class="modal-label" for="jobDescriptionInput">Job Description</label>
       <textarea id="jobDescriptionInput" rows="7" placeholder="Paste the full job description here..."></textarea>
+      <label class="modal-label" for="coverLetterStyleSelect">Style</label>
+      <select id="coverLetterStyleSelect">
+        <option value="balanced">Balanced (Default)</option>
+        <option value="shorter">Shorter</option>
+        <option value="professional">More Professional</option>
+        <option value="friendly">Friendly</option>
+      </select>
       <div class="modal-actions">
         <button id="generateCoverLetterBtn" type="button" class="primary">Generate</button>
         <button id="copyCoverLetterBtn" type="button">Copy Letter</button>
