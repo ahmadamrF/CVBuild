@@ -2,8 +2,10 @@
 const USER_GROQ_KEY_STORAGE_KEY = "cvBuilderUserGroqApiKey";
 const AI_ENHANCE_ENDPOINT = "/api/enhance";
 const COVER_LETTER_ENDPOINT = "/api/cover-letter";
+const TAILOR_CV_ENDPOINT = "/api/tailor-cv";
 const CV_PARSE_ENDPOINT = "/api/parse-cv";
 const AI_CREATE_ENDPOINT = "/api/create-from-scratch";
+const JD_DISTANCE_CONFIRM_THRESHOLD = 0.08;
 const BUILTIN_SECTION_KEYS = [
   "fullName",
   "jobTitle",
@@ -35,6 +37,7 @@ let languagesSortableInstance;
 let toastHost;
 let aiCreateStepIndex = 0;
 let aiCreateAnswers = {};
+let pendingTailorDistanceConfirmResolve = null;
 
 const dom = {
   fullNameInput: document.getElementById("fullNameInput"),
@@ -86,6 +89,16 @@ const dom = {
   generateCoverLetterBtn: document.getElementById("generateCoverLetterBtn"),
   copyCoverLetterBtn: document.getElementById("copyCoverLetterBtn"),
   coverLetterOutput: document.getElementById("coverLetterOutput"),
+  tailorCvBtn: document.getElementById("tailorCvBtn"),
+  tailorCvModal: document.getElementById("tailorCvModal"),
+  closeTailorCvModalBtn: document.getElementById("closeTailorCvModalBtn"),
+  tailorJobDescriptionInput: document.getElementById("tailorJobDescriptionInput"),
+  tailorCvGenerateBtn: document.getElementById("tailorCvGenerateBtn"),
+  tailorDistanceModal: document.getElementById("tailorDistanceModal"),
+  closeTailorDistanceModalBtn: document.getElementById("closeTailorDistanceModalBtn"),
+  tailorDistanceMessage: document.getElementById("tailorDistanceMessage"),
+  tailorDistanceCancelBtn: document.getElementById("tailorDistanceCancelBtn"),
+  tailorDistanceConfirmBtn: document.getElementById("tailorDistanceConfirmBtn"),
   aiCreateModal: document.getElementById("aiCreateModal"),
   closeAiCreateModalBtn: document.getElementById("closeAiCreateModalBtn"),
   aiCreateQuestionLabel: document.getElementById("aiCreateQuestionLabel"),
@@ -281,6 +294,18 @@ function bindEvents() {
   dom.coverLetterModal.addEventListener("click", (event) => {
     if (event.target === dom.coverLetterModal) closeCoverLetterModal();
   });
+  dom.tailorCvBtn.addEventListener("click", openTailorCvModal);
+  dom.closeTailorCvModalBtn.addEventListener("click", closeTailorCvModal);
+  dom.tailorCvGenerateBtn.addEventListener("click", generateTailoredCv);
+  dom.tailorCvModal.addEventListener("click", (event) => {
+    if (event.target === dom.tailorCvModal) closeTailorCvModal();
+  });
+  dom.closeTailorDistanceModalBtn.addEventListener("click", () => closeTailorDistanceModal(false));
+  dom.tailorDistanceCancelBtn.addEventListener("click", () => closeTailorDistanceModal(false));
+  dom.tailorDistanceConfirmBtn.addEventListener("click", () => closeTailorDistanceModal(true));
+  dom.tailorDistanceModal.addEventListener("click", (event) => {
+    if (event.target === dom.tailorDistanceModal) closeTailorDistanceModal(false);
+  });
   dom.closeAiCreateModalBtn.addEventListener("click", closeAiCreateModal);
   dom.aiCreateModal.addEventListener("click", (event) => {
     if (event.target === dom.aiCreateModal) closeAiCreateModal();
@@ -303,6 +328,14 @@ function bindEvents() {
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
     if (isFabMenuOpen()) closeFabMenu();
+    if (!dom.tailorDistanceModal.hidden) {
+      closeTailorDistanceModal(false);
+      return;
+    }
+    if (!dom.tailorCvModal.hidden) {
+      closeTailorCvModal();
+      return;
+    }
     if (!dom.aiCreateModal.hidden) {
       closeAiCreateModal();
       return;
@@ -932,15 +965,30 @@ async function requestEnhancementViaServer(payload) {
 
   return String(data.text || "").trim();
 }
+
+function setModalVisibility(modal, isVisible) {
+  if (!modal) return;
+  modal.hidden = !isVisible;
+  syncBodyModalState();
+}
+
+function syncBodyModalState() {
+  const hasOpenModal = [
+    dom.coverLetterModal,
+    dom.aiCreateModal,
+    dom.tailorCvModal,
+    dom.tailorDistanceModal
+  ].some((modal) => modal && !modal.hidden);
+  document.body.classList.toggle("modal-open", hasOpenModal);
+}
+
 function openCoverLetterModal() {
-  dom.coverLetterModal.hidden = false;
-  document.body.classList.add("modal-open");
+  setModalVisibility(dom.coverLetterModal, true);
   dom.jobDescriptionInput.focus();
 }
 
 function closeCoverLetterModal() {
-  dom.coverLetterModal.hidden = true;
-  document.body.classList.remove("modal-open");
+  setModalVisibility(dom.coverLetterModal, false);
 }
 
 async function generateCoverLetter() {
@@ -983,6 +1031,138 @@ async function copyCoverLetterOutput() {
   } catch {
     showToast("Could not copy cover letter.", "error");
   }
+}
+
+function openTailorCvModal() {
+  setModalVisibility(dom.tailorCvModal, true);
+  dom.tailorJobDescriptionInput.focus();
+}
+
+function closeTailorCvModal() {
+  if (!dom.tailorDistanceModal.hidden) {
+    closeTailorDistanceModal(false);
+  }
+  setModalVisibility(dom.tailorCvModal, false);
+}
+
+function openTailorDistanceModal(message) {
+  if (dom.tailorDistanceMessage) {
+    dom.tailorDistanceMessage.textContent = message;
+  }
+  setModalVisibility(dom.tailorDistanceModal, true);
+}
+
+function closeTailorDistanceModal(confirmed) {
+  setModalVisibility(dom.tailorDistanceModal, false);
+  if (pendingTailorDistanceConfirmResolve) {
+    const resolve = pendingTailorDistanceConfirmResolve;
+    pendingTailorDistanceConfirmResolve = null;
+    resolve(Boolean(confirmed));
+  }
+}
+
+function confirmLargeTailorChange(message) {
+  return new Promise((resolve) => {
+    pendingTailorDistanceConfirmResolve = resolve;
+    openTailorDistanceModal(message);
+  });
+}
+
+async function generateTailoredCv() {
+  if (pendingTailorDistanceConfirmResolve) return;
+
+  const jobDescription = String(dom.tailorJobDescriptionInput.value || "").trim();
+  if (!jobDescription) {
+    showToast("Add the job description first.", "info");
+    dom.tailorJobDescriptionInput.focus();
+    return;
+  }
+
+  const overlapScore = estimateCvJdOverlap(jobDescription, buildCvContextForAi());
+  if (overlapScore < JD_DISTANCE_CONFIRM_THRESHOLD) {
+    const confirmed = await confirmLargeTailorChange(
+      "This job description appears far from your current CV. Tailoring may heavily rewrite multiple sections. Continue?"
+    );
+    if (!confirmed) {
+      showToast("Tailoring canceled.", "info");
+      return;
+    }
+  }
+
+  const originalLabel = dom.tailorCvGenerateBtn.textContent;
+  dom.tailorCvGenerateBtn.disabled = true;
+  dom.tailorCvGenerateBtn.textContent = "Tailoring...";
+  showToast("Tailoring CV to job description...", "info", 1500);
+
+  try {
+    const payload = { jobDescription, cv: buildCvContextForAi() };
+    const tailoredCv = await requestTailoredCvViaServer(payload);
+    if (!tailoredCv || typeof tailoredCv !== "object") {
+      throw new Error("No tailored CV returned.");
+    }
+    applyTailoredCvData(tailoredCv);
+    saveState();
+    refreshUIFromState("CV tailored to the job description.");
+    closeTailorCvModal();
+    showToast("CV tailored successfully.", "success");
+  } catch (error) {
+    const errorMessage = error.message || "Unknown error.";
+    showToast(`CV tailoring failed: ${errorMessage}`, "error", 5000);
+  } finally {
+    dom.tailorCvGenerateBtn.disabled = false;
+    dom.tailorCvGenerateBtn.textContent = originalLabel;
+  }
+}
+
+function estimateCvJdOverlap(jobDescription, cv) {
+  const jdTokens = extractMeaningfulTokens(jobDescription);
+  const cvText = stringifyCvForMatching(cv);
+  const cvTokens = extractMeaningfulTokens(cvText);
+
+  if (jdTokens.size < 12 || cvTokens.size < 12) {
+    return 1;
+  }
+
+  let shared = 0;
+  jdTokens.forEach((token) => {
+    if (cvTokens.has(token)) shared += 1;
+  });
+
+  return shared / jdTokens.size;
+}
+
+function stringifyCvForMatching(cv) {
+  if (!cv || typeof cv !== "object") return "";
+  const chunks = [
+    cv.fullName,
+    cv.jobTitle,
+    cv.location,
+    cv.summary,
+    Array.isArray(cv.skills) ? cv.skills.join(" ") : "",
+    Array.isArray(cv.experience)
+      ? cv.experience.map((entry) => [entry?.title, entry?.company, entry?.description].join(" ")).join(" ")
+      : "",
+    Array.isArray(cv.education)
+      ? cv.education.map((entry) => [entry?.degree, entry?.school, entry?.description].join(" ")).join(" ")
+      : "",
+    Array.isArray(cv.projects)
+      ? cv.projects.map((entry) => [entry?.name, entry?.stack, entry?.achievements].join(" ")).join(" ")
+      : "",
+    Array.isArray(cv.customSections)
+      ? cv.customSections.map((entry) => [entry?.title, entry?.content].join(" ")).join(" ")
+      : ""
+  ];
+  return chunks.filter(Boolean).join(" ");
+}
+
+function extractMeaningfulTokens(value) {
+  const stopWords = new Set([
+    "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "in", "is", "it", "of", "on", "or",
+    "that", "the", "to", "we", "with", "you", "your", "our", "this", "will", "must", "can", "using"
+  ]);
+  const normalized = String(value || "").toLowerCase().replace(/[^a-z0-9+#. ]+/g, " ");
+  const tokens = normalized.split(/\s+/).filter((token) => token.length >= 3 && !stopWords.has(token));
+  return new Set(tokens);
 }
 
 function getAiCreateQuestions() {
@@ -1081,13 +1261,11 @@ function openAiCreateModal() {
   aiCreateAnswers = buildDefaultAiCreateAnswers();
   aiCreateStepIndex = 0;
   renderAiCreateStep();
-  dom.aiCreateModal.hidden = false;
-  document.body.classList.add("modal-open");
+  setModalVisibility(dom.aiCreateModal, true);
 }
 
 function closeAiCreateModal() {
-  dom.aiCreateModal.hidden = true;
-  document.body.classList.remove("modal-open");
+  setModalVisibility(dom.aiCreateModal, false);
 }
 
 function buildDefaultAiCreateAnswers() {
@@ -1234,6 +1412,23 @@ function buildCvContextForAi() {
   };
 }
 
+function applyTailoredCvData(parsed) {
+  const normalized = sanitizeImportedCv(parsed);
+  state.fullName = normalized.fullName;
+  state.jobTitle = normalized.jobTitle;
+  state.email = normalized.email;
+  state.mobile = normalized.mobile;
+  state.location = normalized.location;
+  state.linkedin = normalized.linkedin;
+  state.github = normalized.github;
+  state.summary = normalized.summary;
+  state.skills = normalized.skills;
+  state.languages = normalized.languages;
+  state.experience = normalized.experience;
+  state.education = normalized.education;
+  state.projects = normalized.projects;
+}
+
 async function requestCoverLetterViaServer(payload) {
   const response = await fetch(COVER_LETTER_ENDPOINT, {
     method: "POST",
@@ -1243,6 +1438,18 @@ async function requestCoverLetterViaServer(payload) {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || "Request failed.");
   return String(data.text || "").trim();
+}
+
+async function requestTailoredCvViaServer(payload) {
+  const response = await fetch(TAILOR_CV_ENDPOINT, {
+    method: "POST",
+    headers: buildApiJsonHeaders(),
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "Request failed.");
+  if (data?.cv && typeof data.cv === "object") return data.cv;
+  return data;
 }
 
 async function requestCreateFromScratchViaServer(payload) {

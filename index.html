@@ -23,6 +23,7 @@
           <button id="importJsonBtn" type="button">Import JSON</button>
           <button id="shareLinkBtn" type="button">Copy Share Link</button>
           <button id="coverLetterBtn" type="button">Cover Letter</button>
+          <button id="tailorCvBtn" type="button">Tailor to JD</button>
           <select id="pdfExportModeSelect" class="pdf-export-mode-select" title="PDF export mode">
             <option value="normal">Normal PDF</option>
             <option value="one-page">One Page (Compressed)</option>
@@ -240,6 +241,35 @@
     </div>
   </div>
 
+  <div id="tailorCvModal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="tailorCvTitle">
+      <div class="modal-header">
+        <h2 id="tailorCvTitle">Tailor CV to Job Description</h2>
+        <button id="closeTailorCvModalBtn" type="button" class="modal-close-btn" aria-label="Close">x</button>
+      </div>
+      <p class="modal-note">Paste a job description and we will tailor your CV content to better match it while keeping your real background.</p>
+      <label class="modal-label" for="tailorJobDescriptionInput">Job Description</label>
+      <textarea id="tailorJobDescriptionInput" rows="8" placeholder="Paste the full job description here..."></textarea>
+      <div class="modal-actions">
+        <button id="tailorCvGenerateBtn" type="button" class="primary">Tailor CV</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="tailorDistanceModal" class="modal-overlay" hidden>
+    <div class="modal-card tailor-distance-modal-card" role="dialog" aria-modal="true" aria-labelledby="tailorDistanceTitle">
+      <div class="modal-header">
+        <h2 id="tailorDistanceTitle">Large CV Changes Detected</h2>
+        <button id="closeTailorDistanceModalBtn" type="button" class="modal-close-btn" aria-label="Close">x</button>
+      </div>
+      <p id="tailorDistanceMessage" class="modal-note tailor-distance-note"></p>
+      <div class="modal-actions">
+        <button id="tailorDistanceCancelBtn" type="button">Cancel</button>
+        <button id="tailorDistanceConfirmBtn" type="button" class="primary">Continue Tailoring</button>
+      </div>
+    </div>
+  </div>
+
   <div class="floating-actions">
     <button id="fabToggleBtn" type="button" class="fab-toggle-btn" aria-label="Open quick actions" aria-expanded="false">+</button>
     <div id="fabMenu" class="fab-menu">
@@ -251,6 +281,7 @@
       <button type="button" data-fab-target="importJsonBtn">Import JSON</button>
       <button type="button" data-fab-target="shareLinkBtn">Copy Share Link</button>
       <button type="button" data-fab-target="coverLetterBtn">Cover Letter</button>
+      <button type="button" data-fab-target="tailorCvBtn">Tailor to JD</button>
       <button type="button" data-fab-target="exportPdfBtn">Export PDF</button>
     </div>
   </div>

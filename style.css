@@ -678,6 +678,15 @@ textarea {
   width: min(760px, 100%);
 }
 
+.tailor-distance-modal-card {
+  width: min(560px, 100%);
+}
+
+.tailor-distance-note {
+  color: #9a3513;
+  font-weight: 600;
+}
+
 .ai-create-progress-wrap {
   margin-bottom: 0.7rem;
 }
