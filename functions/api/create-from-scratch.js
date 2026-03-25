@@ -37,14 +37,14 @@ export async function onRequestPost(context) {
     "Output schema:",
     "{",
     "\"cv\": {",
-    "\"fullName\": string, \"jobTitle\": string, \"linkedin\": string, \"github\": string, \"summary\": string,",
+    "\"fullName\": string, \"jobTitle\": string, \"location\": string, \"linkedin\": string, \"github\": string, \"summary\": string,",
     "\"skills\": string[],",
     "\"languages\": [{\"name\": string, \"level\": \"native\"|\"c2\"|\"c1\"|\"b2\"|\"b1\"|\"a2\"|\"a1\"}],",
     "\"experience\": [{\"title\": string, \"company\": string, \"date\": string, \"description\": string}],",
     "\"education\": [{\"degree\": string, \"school\": string, \"date\": string, \"description\": string}],",
     "\"projects\": [{\"name\": string, \"stack\": string, \"link\": string, \"achievements\": string}]",
     "},",
-    "\"design\": {\"template\": \"modern\"|\"classic\"|\"minimal\"|\"executive\"|\"creative\"}",
+    "\"design\": {\"template\": \"modern\"|\"classic\"|\"minimal\"|\"executive\"|\"creative\"|\"split\"}",
     "}"
   ].join(" ");
 

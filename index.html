@@ -46,6 +46,7 @@
               <option value="classic">Classic</option>
               <option value="minimal">Minimal</option>
               <option value="executive">Executive</option>
+              <option value="split">Split</option>
               <option value="creative">Creative</option>
             </select>
           </label>
@@ -100,8 +101,15 @@
 
         <section class="editor-card" data-section="links">
           <div class="card-header">
-            <h2>Links</h2>
+            <h2>Links &amp; Contact</h2>
             <span class="drag-handle" title="Drag section">::</span>
+          </div>
+          <div class="field-row">
+            <input id="emailInput" data-field="email" type="email" placeholder="Email Address">
+            <input id="mobileInput" data-field="mobile" type="tel" placeholder="Mobile Number">
+          </div>
+          <div class="field-row">
+            <input id="locationInput" data-field="location" type="text" placeholder="Location (e.g., Cairo, Egypt)">
           </div>
           <div class="field-row">
             <input id="linkedinInput" data-field="linkedin" type="text" placeholder="LinkedIn URL">
@@ -174,6 +182,15 @@
     <section class="preview-panel">
       <header class="preview-header">
         <h2>Live CV Preview</h2>
+        <button
+          id="previewToggleBtn"
+          class="preview-toggle-btn"
+          type="button"
+          aria-controls="cvPreview"
+          aria-expanded="true"
+        >
+          Hide Preview
+        </button>
       </header>
       <div class="preview-scroll">
         <article id="cvPreview" class="cv-paper" aria-label="CV preview"></article>

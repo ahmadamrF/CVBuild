@@ -39,6 +39,9 @@ let aiCreateAnswers = {};
 const dom = {
   fullNameInput: document.getElementById("fullNameInput"),
   jobTitleInput: document.getElementById("jobTitleInput"),
+  emailInput: document.getElementById("emailInput"),
+  mobileInput: document.getElementById("mobileInput"),
+  locationInput: document.getElementById("locationInput"),
   linkedinInput: document.getElementById("linkedinInput"),
   githubInput: document.getElementById("githubInput"),
   summaryInput: document.getElementById("summaryInput"),
@@ -72,6 +75,8 @@ const dom = {
   shareLinkBtn: document.getElementById("shareLinkBtn"),
   pdfExportModeSelect: document.getElementById("pdfExportModeSelect"),
   exportPdfBtn: document.getElementById("exportPdfBtn"),
+  previewPanel: document.querySelector(".preview-panel"),
+  previewToggleBtn: document.getElementById("previewToggleBtn"),
   cvPreview: document.getElementById("cvPreview"),
   statusMessage: document.getElementById("statusMessage"),
   coverLetterBtn: document.getElementById("coverLetterBtn"),
@@ -99,6 +104,7 @@ init();
 
 function init() {
   applySharedStateFromUrlIfPresent();
+  recoverSectionsIfStateLooksBroken();
   initToastService();
   hydrateInputs();
   renderAllEditors();
@@ -106,6 +112,7 @@ function init() {
   ensureBuiltinSectionDeleteButtons();
   initSortables();
   bindEvents();
+  initMobilePreviewToggle();
   attachAiEnhanceButtons();
   renderPreview();
 }
@@ -130,6 +137,23 @@ function bindEvents() {
     state.github = event.target.value;
     persistAndRenderPreview();
   });
+
+  dom.emailInput.addEventListener("input", (event) => {
+    state.email = event.target.value;
+    persistAndRenderPreview();
+  });
+
+  dom.mobileInput.addEventListener("input", (event) => {
+    state.mobile = event.target.value;
+    persistAndRenderPreview();
+  });
+
+  dom.locationInput.addEventListener("input", (event) => {
+    state.location = event.target.value;
+    persistAndRenderPreview();
+  });
+
+  dom.previewToggleBtn?.addEventListener("click", toggleMobilePreview);
 
   dom.summaryInput.addEventListener("input", (event) => {
     state.summary = event.target.value;
@@ -285,6 +309,36 @@ function bindEvents() {
     }
     if (!dom.coverLetterModal.hidden) closeCoverLetterModal();
   });
+}
+
+function initMobilePreviewToggle() {
+  updateMobilePreviewToggleUi();
+  const mediaQuery = window.matchMedia("(max-width: 640px)");
+  if (typeof mediaQuery.addEventListener === "function") {
+    mediaQuery.addEventListener("change", updateMobilePreviewToggleUi);
+  } else if (typeof mediaQuery.addListener === "function") {
+    mediaQuery.addListener(updateMobilePreviewToggleUi);
+  }
+}
+
+function toggleMobilePreview() {
+  if (!window.matchMedia("(max-width: 640px)").matches) return;
+  dom.previewPanel?.classList.toggle("is-collapsed");
+  updateMobilePreviewToggleUi();
+}
+
+function updateMobilePreviewToggleUi() {
+  if (!dom.previewPanel || !dom.previewToggleBtn) return;
+
+  const isMobile = window.matchMedia("(max-width: 640px)").matches;
+  if (!isMobile) {
+    dom.previewPanel.classList.remove("is-collapsed");
+  }
+
+  const isExpanded = !dom.previewPanel.classList.contains("is-collapsed");
+  dom.previewToggleBtn.hidden = !isMobile;
+  dom.previewToggleBtn.setAttribute("aria-expanded", String(isExpanded));
+  dom.previewToggleBtn.textContent = isExpanded ? "Hide Preview" : "Show Preview";
 }
 
 function toggleFabMenu() {
@@ -480,6 +534,9 @@ function handleEditorClicks(event) {
 function hydrateInputs() {
   dom.fullNameInput.value = state.fullName;
   dom.jobTitleInput.value = state.jobTitle;
+  dom.emailInput.value = state.email;
+  dom.mobileInput.value = state.mobile;
+  dom.locationInput.value = state.location;
   dom.linkedinInput.value = state.linkedin;
   dom.githubInput.value = state.github;
   dom.summaryInput.value = state.summary;
@@ -525,14 +582,13 @@ function renderCustomSectionCards() {
 
 function applySectionOrderToEditor() {
   const hiddenBuiltins = new Set(state.hiddenSections || []);
-  const cards = [...dom.sectionsContainer.querySelectorAll(".editor-card")].filter((card) => {
+  const allCards = [...dom.sectionsContainer.querySelectorAll(".editor-card")];
+  allCards.forEach((card) => {
     const sectionKey = card.dataset.section;
-    if (hiddenBuiltins.has(sectionKey) && BUILTIN_SECTION_KEYS.includes(sectionKey)) {
-      card.remove();
-      return false;
-    }
-    return true;
+    const isHiddenBuiltin = hiddenBuiltins.has(sectionKey) && BUILTIN_SECTION_KEYS.includes(sectionKey);
+    card.hidden = isHiddenBuiltin;
   });
+  const cards = allCards.filter((card) => !card.hidden);
   const map = new Map(cards.map((card) => [card.dataset.section, card]));
   const availableKeys = new Set(cards.map((card) => card.dataset.section));
 
@@ -724,9 +780,28 @@ function removeBuiltinSection(sectionKey) {
   state.sectionOrder = state.sectionOrder.filter((key) => key !== sectionKey);
 
   const card = dom.sectionsContainer.querySelector(`.editor-card[data-section='${sectionKey}']`);
-  if (card) card.remove();
+  if (card) card.hidden = true;
   persistAndRenderPreview();
   setStatus("Section deleted.");
+}
+
+function recoverSectionsIfStateLooksBroken() {
+  if (!Array.isArray(state.hiddenSections)) state.hiddenSections = [];
+  if (!Array.isArray(state.sectionOrder)) state.sectionOrder = [...BUILTIN_SECTION_KEYS];
+
+  const coreKeys = ["links", "summary", "experience", "education", "projects", "languages", "skills"];
+  const visibleCoreCount = coreKeys.filter((key) => (
+    !state.hiddenSections.includes(key) && state.sectionOrder.includes(key)
+  )).length;
+
+  if (visibleCoreCount > 0) return;
+
+  state.hiddenSections = state.hiddenSections.filter((key) => !coreKeys.includes(key));
+  const customOrder = state.sectionOrder.filter((key) => !BUILTIN_SECTION_KEYS.includes(key));
+  state.sectionOrder = [
+    ...BUILTIN_SECTION_KEYS.filter((key) => !state.hiddenSections.includes(key)),
+    ...customOrder
+  ];
 }
 
 function applyFormatting(targetId, type) {
@@ -993,6 +1068,7 @@ function getAiCreateQuestions() {
       options: [
         { value: "modern", label: "Modern" },
         { value: "executive", label: "Executive" },
+        { value: "split", label: "Split" },
         { value: "creative", label: "Creative" },
         { value: "classic", label: "Classic" },
         { value: "minimal", label: "Minimal" }
@@ -1018,6 +1094,7 @@ function buildDefaultAiCreateAnswers() {
   return {
     fullName: String(state.fullName || "").trim(),
     targetRole: String(state.jobTitle || "").trim(),
+    locationWorkMode: String(state.location || "").trim(),
     templatePreference: state.design?.template || "modern",
     tone: "professional",
     links: [state.linkedin, state.github].filter(Boolean).join(", ")
@@ -1133,7 +1210,7 @@ async function generateCvFromAiQuestions() {
 }
 
 function applyAiGeneratedDesign(design, fallbackTemplate) {
-  const allowedTemplates = ["modern", "classic", "minimal", "executive", "creative"];
+  const allowedTemplates = ["modern", "classic", "minimal", "executive", "creative", "split"];
   const preferredTemplate = String(design?.template || fallbackTemplate || "").toLowerCase();
   if (allowedTemplates.includes(preferredTemplate)) {
     state.design.template = preferredTemplate;
@@ -1144,6 +1221,7 @@ function buildCvContextForAi() {
   return {
     fullName: state.fullName,
     jobTitle: state.jobTitle,
+    location: state.location,
     linkedin: state.linkedin,
     github: state.github,
     summary: state.summary,
@@ -1184,13 +1262,15 @@ function renderPreview() {
 
   state.sectionOrder.forEach((sectionKey) => {
     const sectionNode = renderPreviewSection(sectionKey);
-    if (sectionNode) dom.cvPreview.appendChild(sectionNode);
+    if (!sectionNode) return;
+    sectionNode.dataset.previewSection = sectionKey;
+    dom.cvPreview.appendChild(sectionNode);
   });
 }
 
 function applyDesignToPreview() {
   const classList = dom.cvPreview.classList;
-  classList.remove("template-modern", "template-classic", "template-minimal", "template-executive", "template-creative", "ats-mode");
+  classList.remove("template-modern", "template-classic", "template-minimal", "template-executive", "template-creative", "template-split", "ats-mode");
   classList.add(`template-${state.design.template}`);
   if (state.design.atsMode) classList.add("ats-mode");
 
@@ -1236,6 +1316,14 @@ function blendColors(c1, c2, w1) {
   return `rgb(${r},${g},${b})`;
 }
 
+const CONTACT_ICONS = {
+  Email: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>`,
+  Mobile: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>`,
+  Location: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z"/></svg>`,
+  LinkedIn: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.32 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.79M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z"/></svg>`,
+  GitHub: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2A10 10 0 0 0 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.46-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.87 1.52 2.34 1.07 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.92 0-1.11.38-2 1.03-2.71-.1-.25-.45-1.29.1-2.64 0 0 .84-.27 2.75 1.02.79-.22 1.65-.33 2.5-.33.85 0 1.71.11 2.5.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.35.2 2.39.1 2.64.65.71 1.03 1.6 1.03 2.71 0 3.82-2.34 4.66-4.57 4.91.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0 0 12 2z"/></svg>`
+};
+
 function renderPreviewSection(sectionKey) {
   if (sectionKey === "fullName") {
     const wrapper = document.createElement("section");
@@ -1262,25 +1350,43 @@ function renderPreviewSection(sectionKey) {
   if (sectionKey === "links") {
     const wrapper = document.createElement("section");
     wrapper.className = "cv-section";
-    const links = [
-      { label: "LinkedIn", value: state.linkedin },
-      { label: "GitHub", value: state.github }
-    ].filter((item) => String(item.value || "").trim());
+    const emailVal = String(state.email || "").trim();
+    const mobileVal = String(state.mobile || "").trim();
+    const locationVal = String(state.location || "").trim();
+    const contactItems = [
+      emailVal && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal)
+        ? { label: "Email", value: emailVal, href: `mailto:${emailVal}` }
+        : null,
+      mobileVal && /^[+\d\s()./-]{1,20}$/.test(mobileVal)
+        ? { label: "Mobile", value: mobileVal, href: `tel:${mobileVal.replace(/[^\d+]/g, "")}` }
+        : null,
+      locationVal ? { label: "Location", value: locationVal } : null,
+      { label: "LinkedIn", value: state.linkedin, href: normalizeExternalUrl(state.linkedin) },
+      { label: "GitHub", value: state.github, href: normalizeExternalUrl(state.github) }
+    ].filter((item) => item && String(item.value || "").trim());
 
-    if (!links.length) {
-      appendPlaceholder(wrapper, "Add LinkedIn and GitHub links.");
+    if (!contactItems.length) {
+      appendPlaceholder(wrapper, "Add email, mobile, location, LinkedIn, and GitHub links.");
       return wrapper;
     }
 
     const linksWrap = document.createElement("div");
     linksWrap.className = "cv-social-links";
-    links.forEach((item) => {
-      const link = document.createElement("a");
+    contactItems.forEach((item) => {
+      const link = item.href ? document.createElement("a") : document.createElement("div");
       link.className = "cv-link";
-      link.href = normalizeExternalUrl(item.value);
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      link.textContent = `${item.label}: ${item.value}`;
+      if (item.href) link.href = item.href;
+      if (item.href && (item.label === "LinkedIn" || item.label === "GitHub")) {
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+      }
+      const iconSpan = document.createElement("span");
+      iconSpan.className = "cv-link-icon";
+      if (CONTACT_ICONS[item.label]) iconSpan.innerHTML = CONTACT_ICONS[item.label];
+      const textSpan = document.createElement("span");
+      textSpan.textContent = item.value;
+      link.appendChild(iconSpan);
+      link.appendChild(textSpan);
       linksWrap.appendChild(link);
     });
     wrapper.appendChild(linksWrap);
@@ -1884,6 +1990,9 @@ function applyParsedCvData(parsed) {
   const normalized = sanitizeImportedCv(parsed);
   state.fullName = normalized.fullName;
   state.jobTitle = normalized.jobTitle;
+  state.email = normalized.email;
+  state.mobile = normalized.mobile;
+  state.location = normalized.location;
   state.linkedin = normalized.linkedin;
   state.github = normalized.github;
   state.summary = normalized.summary;
@@ -1905,6 +2014,9 @@ function sanitizeImportedCv(candidate) {
   return {
     fullName: String(safe.fullName || "").trim(),
     jobTitle: String(safe.jobTitle || "").trim(),
+    email: String(safe.email || "").trim(),
+    mobile: String(safe.mobile || "").trim(),
+    location: String(safe.location || "").trim(),
     linkedin: String(safe.linkedin || "").trim(),
     github: String(safe.github || "").trim(),
     summary: String(safe.summary || "").trim(),
@@ -1978,6 +2090,7 @@ function applySharedStateFromUrlIfPresent() {
 }
 
 function refreshUIFromState(status) {
+  recoverSectionsIfStateLooksBroken();
   hydrateInputs();
   renderAllEditors();
   applySectionOrderToEditor();
@@ -2007,6 +2120,9 @@ function getDefaultState() {
     },
     fullName: "Alex Johnson",
     jobTitle: "Frontend Developer",
+    email: "",
+    mobile: "",
+    location: "",
     linkedin: "",
     github: "",
     summary: "Detail-oriented frontend developer with experience building accessible, responsive web interfaces.",
@@ -2074,6 +2190,9 @@ function sanitizeState(candidate) {
     design: normalizeDesign(candidate.design, fallback.design),
     fullName: String(candidate.fullName ?? fallback.fullName),
     jobTitle: String(candidate.jobTitle ?? fallback.jobTitle),
+    email: String(candidate.email ?? fallback.email),
+    mobile: String(candidate.mobile ?? fallback.mobile),
+    location: String(candidate.location ?? fallback.location),
     linkedin: String(candidate.linkedin ?? fallback.linkedin),
     github: String(candidate.github ?? fallback.github),
     summary: String(candidate.summary ?? fallback.summary),
@@ -2097,7 +2216,7 @@ function normalizeSkills(value, fallback) {
 
 function normalizeDesign(design, fallback) {
   if (!design || typeof design !== "object") return fallback;
-  const allowedTemplates = ["modern", "classic", "minimal", "executive", "creative"];
+  const allowedTemplates = ["modern", "classic", "minimal", "executive", "creative", "split"];
   const allowedFonts = ["jakarta", "lato", "nunito"];
   return {
     template: allowedTemplates.includes(design.template) ? design.template : fallback.template,
