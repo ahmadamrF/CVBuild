@@ -12,24 +12,9 @@
       <header class="panel-header">
         <div>
           <h1>CV Builder</h1>
-          <p>Build your resume and preview it instantly.</p>
+          <p>Build fast on mobile, polish on desktop, and keep your preview always in sync.</p>
         </div>
-        <div class="header-actions">
-          <button id="saveBtn" type="button">Save Draft</button>
-          <button id="loadBtn" type="button">Load Draft</button>
-          <button id="importExistingCvBtn" type="button">Import Existing CV</button>
-          <button id="aiCreateCvBtn" type="button">Quick Draft</button>
-          <button id="exportJsonBtn" type="button">Export JSON</button>
-          <button id="importJsonBtn" type="button">Import JSON</button>
-          <button id="shareLinkBtn" type="button">Copy Share Link</button>
-          <button id="coverLetterBtn" type="button">Cover Letter</button>
-          <button id="tailorCvBtn" type="button">Tailor to JD</button>
-          <select id="pdfExportModeSelect" class="pdf-export-mode-select" title="PDF export mode">
-            <option value="normal">Normal PDF</option>
-            <option value="one-page">One Page (Compressed)</option>
-          </select>
-          <button id="exportPdfBtn" type="button" class="primary">Export PDF</button>
-        </div>
+        <button id="editorSheetCloseBtn" type="button" class="editor-sheet-close-btn">Close</button>
       </header>
 
       <p id="statusMessage" class="status-message" aria-live="polite"></p>
@@ -37,53 +22,20 @@
       <input id="importJsonFile" type="file" accept="application/json" hidden>
       <input id="existingCvFileInput" type="file" accept=".pdf,.doc,.docx,.txt,.md,.rtf,.json" hidden>
 
-      <section class="design-controls">
-        <h2>Design Settings</h2>
-        <div class="design-grid">
-          <label>
-            Template
-            <select id="templateSelect">
-              <option value="modern">Modern</option>
-              <option value="classic">Classic</option>
-              <option value="minimal">Minimal</option>
-              <option value="executive">Executive</option>
-              <option value="split">Split</option>
-              <option value="creative">Creative</option>
-            </select>
-          </label>
-          <label>
-            Accent Color
-            <input id="accentColorInput" type="color" value="#0f5c90">
-          </label>
-          <label>
-            Body Font
-            <select id="fontSelect">
-              <option value="jakarta">Plus Jakarta Sans</option>
-              <option value="lato">Lato</option>
-              <option value="nunito">Nunito Sans</option>
-            </select>
-          </label>
-          <label class="ats-toggle">
-            <input id="atsModeToggle" type="checkbox">
-            ATS Mode
-          </label>
-          <label class="groq-key-setting">
-            Groq API Key (Optional)
-            <input id="groqApiKeyInput" type="password" placeholder="gsk_...">
-            <small>
-              Add your own key to use your Groq account.
-              <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer">Get a key</a>
-            </small>
-          </label>
+      <nav class="workspace-switcher" aria-label="Editor workspaces">
+        <button type="button" class="workspace-tab is-active" data-workspace-tab="content">Content</button>
+        <button type="button" class="workspace-tab" data-workspace-tab="design">Design</button>
+        <button type="button" class="workspace-tab" data-workspace-tab="ai">AI Tools</button>
+        <button type="button" class="workspace-tab" data-workspace-tab="export">Export</button>
+      </nav>
+
+      <section class="workspace-pane is-active" data-workspace-pane="content">
+        <div class="custom-section-creator">
+          <input id="customSectionTitleInput" type="text" placeholder="Custom section title (e.g., Projects)">
+          <button id="addCustomSectionBtn" type="button">Add Section</button>
         </div>
-      </section>
 
-      <div class="custom-section-creator">
-        <input id="customSectionTitleInput" type="text" placeholder="Custom section title (e.g., Projects)">
-        <button id="addCustomSectionBtn" type="button">Add Section</button>
-      </div>
-
-      <div id="sectionsContainer" class="sections-container">
+        <div id="sectionsContainer" class="sections-container">
         <section class="editor-card" data-section="fullName">
           <div class="card-header">
             <h2>Full Name</h2>
@@ -177,7 +129,86 @@
           </div>
           <ul id="skillsListEditor" class="skills-editor-list"></ul>
         </section>
-      </div>
+        </div>
+      </section>
+
+      <section class="workspace-pane" data-workspace-pane="design">
+        <section class="design-controls">
+          <h2>Design Settings</h2>
+          <div class="design-grid">
+            <label>
+              Template
+              <select id="templateSelect">
+                <option value="modern">Modern</option>
+                <option value="classic">Classic</option>
+                <option value="minimal">Minimal</option>
+                <option value="executive">Executive</option>
+                <option value="split">Split</option>
+                <option value="creative">Creative</option>
+              </select>
+            </label>
+            <label>
+              Accent Color
+              <input id="accentColorInput" type="color" value="#0f5c90">
+            </label>
+            <label>
+              Body Font
+              <select id="fontSelect">
+                <option value="jakarta">Plus Jakarta Sans</option>
+                <option value="lato">Lato</option>
+                <option value="nunito">Nunito Sans</option>
+              </select>
+            </label>
+            <label class="ats-toggle">
+              <input id="atsModeToggle" type="checkbox">
+              ATS Mode
+            </label>
+          </div>
+        </section>
+      </section>
+
+      <section class="workspace-pane" data-workspace-pane="ai">
+        <section class="editor-card tool-card">
+          <div class="card-header">
+            <h2>AI Assistant</h2>
+          </div>
+          <label class="groq-key-setting">
+            Groq API Key (Optional)
+            <input id="groqApiKeyInput" type="password" placeholder="gsk_...">
+            <small>
+              Add your own key to use your Groq account.
+              <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer">Get a key</a>
+            </small>
+          </label>
+          <div class="tool-grid">
+            <button id="importExistingCvBtn" type="button">Import Existing CV</button>
+            <button id="aiCreateCvBtn" type="button">Quick Draft</button>
+            <button id="coverLetterBtn" type="button">Cover Letter</button>
+            <button id="tailorCvBtn" type="button">Tailor to JD</button>
+          </div>
+        </section>
+      </section>
+
+      <section class="workspace-pane" data-workspace-pane="export">
+        <section class="editor-card tool-card">
+          <div class="card-header">
+            <h2>Draft & Export</h2>
+          </div>
+          <div class="tool-grid">
+            <button id="saveBtn" type="button">Save Draft</button>
+            <button id="loadBtn" type="button">Load Draft</button>
+            <button id="exportJsonBtn" type="button">Export JSON</button>
+            <button id="importJsonBtn" type="button">Import JSON</button>
+            <button id="shareLinkBtn" type="button">Copy Share Link</button>
+            <button id="exportPdfBtn" type="button" class="primary">Export PDF</button>
+          </div>
+          <label class="modal-label" for="pdfExportModeSelect">PDF Mode</label>
+          <select id="pdfExportModeSelect" class="pdf-export-mode-select" title="PDF export mode">
+            <option value="normal">Normal PDF</option>
+            <option value="one-page">One Page (Compressed)</option>
+          </select>
+        </section>
+      </section>
     </aside>
 
     <section class="preview-panel">
@@ -198,6 +229,14 @@
       </div>
     </section>
   </main>
+
+  <nav class="mobile-bottom-nav" aria-label="Mobile navigation">
+    <button type="button" class="mobile-nav-btn is-active" data-mobile-workspace="preview">Preview</button>
+    <button type="button" class="mobile-nav-btn" data-mobile-workspace="content">Content</button>
+    <button type="button" class="mobile-nav-btn" data-mobile-workspace="design">Design</button>
+    <button type="button" class="mobile-nav-btn" data-mobile-workspace="ai">AI</button>
+    <button type="button" class="mobile-nav-btn" data-mobile-workspace="export">Export</button>
+  </nav>
 
   <div id="coverLetterModal" class="modal-overlay" hidden>
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="coverLetterTitle">

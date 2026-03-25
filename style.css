@@ -1431,6 +1431,7 @@ select:focus {
 .modal-overlay {
   background: rgba(22, 31, 36, 0.58);
   backdrop-filter: blur(5px);
+  z-index: 2100;
 }
 
 .modal-card {
@@ -1545,5 +1546,161 @@ select:focus {
     top: 0.55rem;
     right: 0.55rem;
     width: calc(100vw - 1.1rem);
+  }
+}
+
+.workspace-switcher {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.4rem;
+  margin-bottom: 0.9rem;
+}
+
+.workspace-tab {
+  border-radius: 12px;
+  padding: 0.52rem 0.6rem;
+  font-size: 0.84rem;
+}
+
+.workspace-tab.is-active {
+  background: #1f6f6b;
+  border-color: #1f6f6b;
+  color: #fff;
+}
+
+.workspace-pane {
+  display: none;
+}
+
+.workspace-pane.is-active {
+  display: block;
+}
+
+.tool-card {
+  padding: 1rem;
+}
+
+.tool-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-bottom: 0.75rem;
+}
+
+.tool-grid button {
+  width: 100%;
+}
+
+.editor-sheet-close-btn {
+  display: none;
+}
+
+.mobile-bottom-nav {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  body {
+    padding-bottom: 5.3rem;
+  }
+
+  body.editor-sheet-open::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: rgba(16, 23, 28, 0.34);
+    z-index: 1290;
+  }
+
+  .app-shell {
+    display: block;
+    padding: 0.65rem;
+  }
+
+  .preview-panel {
+    min-height: calc(100vh - 6.8rem);
+    margin: 0;
+  }
+
+  .editor-panel {
+    position: fixed;
+    left: 0.5rem;
+    right: 0.5rem;
+    bottom: 5rem;
+    top: 1.2rem;
+    z-index: 1300;
+    overflow-y: auto;
+    transform: translateY(110%);
+    transition: transform 220ms ease;
+    pointer-events: none;
+  }
+
+  body.editor-sheet-open .editor-panel {
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
+  .editor-panel::before {
+    content: "";
+    position: sticky;
+    top: 0;
+    display: block;
+    height: 0;
+  }
+
+  .editor-sheet-close-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding-inline: 0.9rem;
+    font-size: 0.82rem;
+  }
+
+  .workspace-switcher {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .workspace-tab {
+    font-size: 0.78rem;
+    padding: 0.48rem 0.38rem;
+  }
+
+  .tool-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mobile-bottom-nav {
+    position: fixed;
+    left: 0.55rem;
+    right: 0.55rem;
+    bottom: 0.55rem;
+    z-index: 1400;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.28rem;
+    padding: 0.34rem;
+    border: 1px solid #d6cab8;
+    border-radius: 16px;
+    background: rgba(255, 252, 247, 0.96);
+    box-shadow: 0 12px 26px rgba(45, 49, 53, 0.2);
+    backdrop-filter: blur(7px);
+  }
+
+  .mobile-nav-btn {
+    border-radius: 10px;
+    padding: 0.5rem 0.25rem;
+    font-size: 0.74rem;
+    text-align: center;
+    box-shadow: none;
+  }
+
+  .mobile-nav-btn.is-active {
+    border-color: #1f6f6b;
+    background: #1f6f6b;
+    color: #fff;
+  }
+
+  .floating-actions {
+    display: none;
   }
 }

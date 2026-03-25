@@ -38,6 +38,7 @@ let toastHost;
 let aiCreateStepIndex = 0;
 let aiCreateAnswers = {};
 let pendingTailorDistanceConfirmResolve = null;
+let activeWorkspace = "content";
 
 const dom = {
   fullNameInput: document.getElementById("fullNameInput"),
@@ -78,10 +79,12 @@ const dom = {
   shareLinkBtn: document.getElementById("shareLinkBtn"),
   pdfExportModeSelect: document.getElementById("pdfExportModeSelect"),
   exportPdfBtn: document.getElementById("exportPdfBtn"),
+  editorPanel: document.querySelector(".editor-panel"),
   previewPanel: document.querySelector(".preview-panel"),
   previewToggleBtn: document.getElementById("previewToggleBtn"),
   cvPreview: document.getElementById("cvPreview"),
   statusMessage: document.getElementById("statusMessage"),
+  editorSheetCloseBtn: document.getElementById("editorSheetCloseBtn"),
   coverLetterBtn: document.getElementById("coverLetterBtn"),
   coverLetterModal: document.getElementById("coverLetterModal"),
   closeCoverLetterModalBtn: document.getElementById("closeCoverLetterModalBtn"),
@@ -111,7 +114,8 @@ const dom = {
   aiCreateNextBtn: document.getElementById("aiCreateNextBtn"),
   aiCreateGenerateBtn: document.getElementById("aiCreateGenerateBtn"),
   fabToggleBtn: document.getElementById("fabToggleBtn"),
-  fabMenu: document.getElementById("fabMenu")
+  fabMenu: document.getElementById("fabMenu"),
+  mobileBottomNav: document.querySelector(".mobile-bottom-nav")
 };
 
 init();
@@ -126,6 +130,7 @@ function init() {
   ensureBuiltinSectionDeleteButtons();
   initSortables();
   bindEvents();
+  initWorkspaceUi();
   initMobilePreviewToggle();
   attachAiEnhanceButtons();
   renderPreview();
@@ -320,6 +325,23 @@ function bindEvents() {
     event.stopPropagation();
     toggleFabMenu();
   });
+  dom.editorSheetCloseBtn?.addEventListener("click", () => {
+    setActiveWorkspace("preview");
+  });
+  document.querySelector(".workspace-switcher")?.addEventListener("click", (event) => {
+    const tab = event.target.closest("[data-workspace-tab]");
+    if (!tab) return;
+    const workspace = String(tab.dataset.workspaceTab || "").trim();
+    if (!workspace) return;
+    setActiveWorkspace(workspace);
+  });
+  dom.mobileBottomNav?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-mobile-workspace]");
+    if (!button) return;
+    const workspace = String(button.dataset.mobileWorkspace || "").trim();
+    if (!workspace) return;
+    setActiveWorkspace(workspace);
+  });
   dom.fabMenu.addEventListener("click", handleFabMenuClick);
   document.addEventListener("click", (event) => {
     if (!isFabMenuOpen()) return;
@@ -343,6 +365,7 @@ function bindEvents() {
     }
     if (!dom.coverLetterModal.hidden) closeCoverLetterModal();
   });
+  window.addEventListener("resize", syncWorkspaceUiForViewport);
 }
 
 function initMobilePreviewToggle() {
@@ -373,6 +396,49 @@ function updateMobilePreviewToggleUi() {
   dom.previewToggleBtn.hidden = !isMobile;
   dom.previewToggleBtn.setAttribute("aria-expanded", String(isExpanded));
   dom.previewToggleBtn.textContent = isExpanded ? "Hide Preview" : "Show Preview";
+}
+
+function initWorkspaceUi() {
+  setActiveWorkspace(isMobileWorkspaceViewport() ? "preview" : activeWorkspace, { force: true });
+  syncWorkspaceUiForViewport();
+}
+
+function setActiveWorkspace(workspace, options = {}) {
+  const { force = false } = options;
+  const allowed = new Set(["preview", "content", "design", "ai", "export"]);
+  const next = allowed.has(workspace) ? workspace : "content";
+  if (!force && next === activeWorkspace) return;
+  activeWorkspace = next;
+  syncWorkspaceUiForViewport();
+}
+
+function syncWorkspaceUiForViewport() {
+  const mobile = isMobileWorkspaceViewport();
+  const paneKey = activeWorkspace === "preview" ? "content" : activeWorkspace;
+
+  document.querySelectorAll("[data-workspace-pane]").forEach((pane) => {
+    pane.classList.toggle("is-active", pane.dataset.workspacePane === paneKey);
+  });
+  document.querySelectorAll("[data-workspace-tab]").forEach((tab) => {
+    tab.classList.toggle("is-active", tab.dataset.workspaceTab === paneKey);
+  });
+  document.querySelectorAll("[data-mobile-workspace]").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.mobileWorkspace === activeWorkspace);
+  });
+
+  if (!mobile) {
+    document.body.classList.remove("editor-sheet-open");
+    dom.editorPanel?.removeAttribute("aria-hidden");
+    return;
+  }
+
+  const openEditorSheet = activeWorkspace !== "preview";
+  document.body.classList.toggle("editor-sheet-open", openEditorSheet);
+  dom.editorPanel?.setAttribute("aria-hidden", openEditorSheet ? "false" : "true");
+}
+
+function isMobileWorkspaceViewport() {
+  return window.matchMedia("(max-width: 900px)").matches;
 }
 
 function toggleFabMenu() {
@@ -2058,6 +2124,7 @@ function importJsonFile(event) {
   const reader = new FileReader();
   reader.onload = () => {
     state = sanitizeState(safeJsonParse(String(reader.result || "{}")));
+    saveState();
     refreshUIFromState("JSON imported.");
   };
   reader.readAsText(file);
@@ -2084,6 +2151,7 @@ async function importExistingCvFile(event) {
     const parsed = await requestCvParseViaServer(cvText);
 
     applyParsedCvData(parsed);
+    saveState();
     refreshUIFromState("Existing CV imported.");
     showToast("CV imported successfully.", "success");
   } catch (error) {
@@ -2114,6 +2182,7 @@ async function tryImportStateJsonFile(file) {
     if (!looksLikeAppState) return false;
 
     state = sanitizeState(parsed);
+    saveState();
     refreshUIFromState("CV JSON imported.");
     showToast("CV JSON imported successfully.", "success");
     return true;
