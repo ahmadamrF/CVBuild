@@ -1223,3 +1223,327 @@ textarea {
     overflow: visible;
   }
 }
+
+/* ==========================================
+   UI Overhaul: Editorial / Mobile-First
+   ========================================== */
+
+:root {
+  --bg: #f3f0ea;
+  --panel-bg: #f9f6f0;
+  --card-bg: #fffdf9;
+  --line: #dfd6c8;
+  --text: #1f2933;
+  --muted: #6a7177;
+  --primary: #1f6f6b;
+  --primary-strong: #155a56;
+  --accent: #c45c3b;
+  --danger: #b33645;
+  --shadow-soft: 0 22px 40px rgba(32, 42, 50, 0.12);
+  --shadow-card: 0 10px 24px rgba(44, 48, 52, 0.08);
+}
+
+body {
+  font-family: "Nunito Sans", "Plus Jakarta Sans", sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 14% -6%, #ead8bc 0%, rgba(234, 216, 188, 0) 38%),
+    radial-gradient(circle at 89% 8%, #dceeea 0%, rgba(220, 238, 234, 0) 34%),
+    linear-gradient(170deg, #f7f3ed 0%, #ece6de 100%);
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: minmax(360px, 0.95fr) minmax(0, 1.15fr);
+  gap: 1.1rem;
+  max-width: 1560px;
+  margin: 0 auto;
+  padding: 1.1rem;
+  min-height: 100vh;
+}
+
+.editor-panel,
+.preview-panel {
+  border: 1px solid rgba(139, 120, 96, 0.22);
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--panel-bg) 90%, #fff 10%);
+  box-shadow: var(--shadow-card);
+}
+
+.editor-panel {
+  border-right: 1px solid rgba(139, 120, 96, 0.22);
+  padding: 1.25rem;
+}
+
+.panel-header {
+  display: grid;
+  gap: 0.85rem;
+  padding: 0.4rem 0.2rem 0.95rem;
+}
+
+.panel-header h1 {
+  font-family: "Source Serif 4", serif;
+  font-size: clamp(1.5rem, 2vw, 2.05rem);
+  letter-spacing: 0.01em;
+}
+
+.panel-header p {
+  max-width: 48ch;
+  color: #5e6469;
+}
+
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.46rem;
+}
+
+button {
+  border-radius: 999px;
+  border: 1px solid #d8d1c5;
+  background: #fffdf9;
+  color: #243039;
+  font-weight: 700;
+  padding: 0.58rem 0.9rem;
+  letter-spacing: 0.01em;
+  box-shadow: 0 2px 0 rgba(101, 77, 53, 0.08);
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+  border-color: #b6aa9a;
+  box-shadow: 0 8px 18px rgba(44, 48, 52, 0.12);
+}
+
+button.primary {
+  border-color: transparent;
+  color: #fff;
+  background: linear-gradient(140deg, #235f6f 0%, #1f7b72 60%, #23835c 100%);
+}
+
+.design-controls {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, #fffdf9 100%);
+  border: 1px solid #ded4c6;
+  border-radius: 18px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), var(--shadow-card);
+  padding: 1rem;
+}
+
+.design-controls h2 {
+  font-size: 1rem;
+  letter-spacing: 0.01em;
+}
+
+.editor-card {
+  border: 1px solid #e1d8cb;
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(255, 252, 247, 0.94) 100%);
+  box-shadow: 0 10px 24px rgba(54, 45, 32, 0.08);
+}
+
+.card-header h2 {
+  font-family: "Source Serif 4", serif;
+  font-size: 1.08rem;
+  letter-spacing: 0.01em;
+}
+
+input,
+textarea,
+select {
+  border-radius: 12px;
+  border: 1px solid #d8cec0;
+  background: #fffefb;
+  font-size: 0.95rem;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: #459594;
+  box-shadow: 0 0 0 4px rgba(42, 126, 123, 0.15);
+}
+
+.status-message {
+  background: rgba(30, 111, 107, 0.12);
+  color: #205f6f;
+  border: 1px solid rgba(32, 95, 111, 0.26);
+  border-radius: 12px;
+  padding: 0.48rem 0.68rem;
+  min-height: 2.25rem;
+  display: flex;
+  align-items: center;
+}
+
+.repeatable-item {
+  border: 1px solid #e2d9cc;
+  background: #fffdf9;
+  border-radius: 14px;
+}
+
+.skill-chip {
+  background: #f9ede8;
+  border-color: #edc3b0;
+  color: #8f3f27;
+}
+
+.preview-panel {
+  padding: 1.1rem;
+  background:
+    radial-gradient(circle at 10% 4%, rgba(216, 234, 232, 0.42), transparent 30%),
+    radial-gradient(circle at 100% 100%, rgba(227, 208, 186, 0.34), transparent 34%),
+    #f8f5ef;
+}
+
+.preview-header {
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  margin: -0.35rem -0.35rem 0.85rem;
+  padding: 0.6rem 0.35rem 0.55rem;
+  background: linear-gradient(180deg, rgba(248, 245, 239, 0.97) 0%, rgba(248, 245, 239, 0.72) 72%, rgba(248, 245, 239, 0) 100%);
+  backdrop-filter: blur(3px);
+}
+
+.preview-header h2 {
+  font-family: "Source Serif 4", serif;
+  font-size: 1.22rem;
+}
+
+.cv-paper {
+  border-radius: 18px;
+  border: 1px solid #ddd2c3;
+  box-shadow: 0 24px 44px rgba(38, 47, 53, 0.14);
+  padding: 2.2rem 2.1rem;
+}
+
+.cv-name {
+  font-family: "Source Serif 4", serif;
+  letter-spacing: 0.01em;
+}
+
+.cv-section-title {
+  font-size: 0.8rem;
+  letter-spacing: 0.15em;
+}
+
+.modal-overlay {
+  background: rgba(22, 31, 36, 0.58);
+  backdrop-filter: blur(5px);
+}
+
+.modal-card {
+  border-radius: 18px;
+  border: 1px solid #d8ccbb;
+  background: linear-gradient(180deg, #fffefb 0%, #f8f2ea 100%);
+}
+
+.modal-actions {
+  justify-content: flex-end;
+}
+
+.fab-toggle-btn {
+  background: linear-gradient(140deg, #cd6f45 0%, #b6533a 48%, #8f3f2e 100%);
+  box-shadow: 0 14px 30px rgba(87, 47, 36, 0.38);
+}
+
+.fab-menu {
+  border-radius: 16px;
+  border-color: #d7cab8;
+  background: #fffdf9;
+}
+
+.toast {
+  border-radius: 13px;
+}
+
+@media (max-width: 1180px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+    gap: 0.9rem;
+    padding: 0.75rem;
+  }
+
+  .editor-panel,
+  .preview-panel {
+    border-radius: 18px;
+  }
+
+  .editor-panel {
+    max-height: none;
+    overflow: visible;
+    padding-bottom: 1rem;
+  }
+}
+
+@media (max-width: 760px) {
+  .panel-header {
+    gap: 0.7rem;
+    padding-bottom: 0.7rem;
+  }
+
+  .panel-header h1 {
+    font-size: 1.42rem;
+  }
+
+  .header-actions {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+    scrollbar-width: thin;
+  }
+
+  .header-actions > * {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .editor-panel,
+  .preview-panel {
+    padding: 0.9rem;
+  }
+
+  .design-grid,
+  .field-row,
+  .custom-section-creator {
+    grid-template-columns: 1fr;
+  }
+
+  .custom-section-creator {
+    display: grid;
+  }
+
+  .cv-paper {
+    border-radius: 14px;
+    padding: 1.3rem 1.1rem;
+  }
+
+  .cv-name {
+    font-size: 1.62rem;
+  }
+
+  .preview-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-color: #d0c4b3;
+    background: #fffbf6;
+  }
+
+  .floating-actions {
+    right: 0.62rem;
+    bottom: 0.62rem;
+  }
+
+  .fab-toggle-btn {
+    width: 48px;
+    height: 48px;
+  }
+
+  .toast-stack {
+    top: 0.55rem;
+    right: 0.55rem;
+    width: calc(100vw - 1.1rem);
+  }
+}
