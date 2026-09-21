@@ -1730,16 +1730,16 @@ async function exportSearchablePdf({ element, fileName, margins, canvasScale, on
     ? Math.min(contentWidthMm / surfaceRect.width, contentHeightMm / surfaceRect.height)
     : contentWidthMm / surfaceRect.width;
   const pageHeightPx = contentHeightMm / mmPerPx;
-  const totalPages = onePage ? 1 : Math.max(1, Math.ceil(surfaceRect.height / pageHeightPx));
+  const slices = onePage
+    ? [{ startPx: 0, sliceHeightPx: surfaceRect.height }]
+    : paginatePdfSurface(element, fragments, pageHeightPx);
   const imageWidthMm = surfaceRect.width * mmPerPx;
   const pageMargins = { ...margins, left: margins.left + (contentWidthMm - imageWidthMm) / 2 };
   const canvasPixelsPerCssPixel = fullCanvas.height / surfaceRect.height;
 
-  for (let pageIndex = 0; pageIndex < totalPages; pageIndex += 1) {
+  for (let pageIndex = 0; pageIndex < slices.length; pageIndex += 1) {
     if (pageIndex > 0) pdf.addPage();
-    const startPx = pageIndex * pageHeightPx;
-    const remainingPx = Math.max(0, surfaceRect.height - startPx);
-    const sliceHeightPx = onePage ? surfaceRect.height : Math.min(pageHeightPx, remainingPx);
+    const { startPx, sliceHeightPx } = slices[pageIndex];
 
     // Write selectable text first, then draw the visual image above it.
     // This keeps the appearance identical while preserving text extraction/search.
@@ -1805,27 +1805,93 @@ function collectPdfTextFragments(container) {
   const surfaceRect = container.getBoundingClientRect();
   const nodes = [...container.querySelectorAll(selectors)];
 
-  return nodes
-    .map((node) => {
-      const text = normalizePdfText(node.textContent);
-      if (!text) return null;
-      const rect = node.getBoundingClientRect();
-      const style = window.getComputedStyle(node);
+  const fragments = [];
+  for (const node of nodes) {
+    // Nested matching elements are collected by their innermost owner only.
+    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+    let textNode;
+    while ((textNode = walker.nextNode())) {
+      if (textNode.parentElement.closest(selectors) !== node) continue;
+      const style = window.getComputedStyle(textNode.parentElement);
       const fontSizePx = parseFloat(style.fontSize) || 12;
-      const weightValue = parseInt(style.fontWeight, 10);
-      const bold = Number.isFinite(weightValue) ? weightValue >= 600 : /bold/i.test(style.fontWeight);
-
-      return {
-        text,
-        xPx: Math.max(0, rect.left - surfaceRect.left),
-        yPx: Math.max(0, rect.top - surfaceRect.top),
-        widthPx: Math.max(0, rect.width),
-        heightPx: Math.max(fontSizePx * 1.2, rect.height),
-        fontSizePx,
-        bold
+      const bold = parseInt(style.fontWeight, 10) >= 600 || /bold/i.test(style.fontWeight);
+      const range = document.createRange();
+      let line = null;
+      const flush = () => {
+        if (line && normalizePdfText(line.text)) {
+          line.text = normalizePdfText(line.text);
+          fragments.push(line);
+        }
+        line = null;
       };
-    })
-    .filter(Boolean);
+      // Measure browser-wrapped lines instead of rewrapping entire paragraphs
+      // with jsPDF's different font metrics.
+      for (let offset = 0; offset < textNode.length;) {
+        const char = String.fromCodePoint(textNode.textContent.codePointAt(offset));
+        range.setStart(textNode, offset);
+        offset += char.length;
+        range.setEnd(textNode, offset);
+        const rect = range.getBoundingClientRect();
+        if (!rect.height) continue;
+        const yPx = rect.top - surfaceRect.top;
+        if (line && Math.abs(line.yPx - yPx) > 1) flush();
+        if (!line) {
+          line = { text: "", xPx: rect.left - surfaceRect.left, yPx,
+            widthPx: 0, heightPx: rect.height, fontSizePx, bold };
+        }
+        line.text += char;
+        line.widthPx = Math.max(line.widthPx, rect.right - surfaceRect.left - line.xPx);
+      }
+      flush();
+    }
+  }
+  return fragments;
+}
+
+function paginatePdfSurface(container, fragments, pageHeightPx) {
+  const surface = container.getBoundingClientRect();
+  const lines = fragments.map((f) => ({ top: f.yPx - 1, bottom: f.yPx + f.heightPx + 1 }));
+  const blocks = [];
+  const protect = (top, bottom) => {
+    if (bottom - top < pageHeightPx) blocks.push({ top, bottom });
+  };
+  container.querySelectorAll(".cv-entry, .cv-paragraph, .cv-list li, .cv-language-row, .cv-skill").forEach((node) => {
+    const rect = node.getBoundingClientRect();
+    protect(rect.top - surface.top - 1, rect.bottom - surface.top + 1);
+  });
+  // Keep headings with at least the first line of their following content.
+  container.querySelectorAll(".cv-section-title, .cv-entry-header").forEach((node) => {
+    const rect = node.getBoundingClientRect();
+    const top = rect.top - surface.top - 1;
+    const bottom = rect.bottom - surface.top;
+    const next = lines.filter((line) => line.top >= bottom - 1).sort((a, b) => a.top - b.top)[0];
+    protect(top, next ? next.bottom : bottom + 1);
+  });
+  const retreat = (limit, start, ranges) => {
+    let end = limit;
+    while (true) {
+      const crossing = ranges.filter((range) => range.top < end && range.bottom > end);
+      if (!crossing.length) return end;
+      const next = Math.min(...crossing.map((range) => range.top));
+      if (next <= start + 1) return start;
+      end = next;
+    }
+  };
+  const slices = [];
+  let start = 0;
+  while (start < surface.height) {
+    const limit = Math.min(start + pageHeightPx, surface.height);
+    let end = limit;
+    if (limit < surface.height) {
+      end = retreat(limit, start, [...blocks, ...lines]);
+      // An entry taller than a page may continue, but never cut a text line.
+      if (end <= start + 1) end = retreat(limit, start, lines);
+      if (end <= start + 1) end = limit;
+    }
+    slices.push({ startPx: start, sliceHeightPx: end - start });
+    start = end;
+  }
+  return slices;
 }
 
 function normalizePdfText(value) {
@@ -1834,19 +1900,18 @@ function normalizePdfText(value) {
 
 function renderPdfTextLayer(pdf, fragments, { startPx, sliceHeightPx, margins, mmPerPx }) {
   fragments.forEach((fragment) => {
-    const bottomPx = fragment.yPx + fragment.heightPx;
-    if (bottomPx < startPx || fragment.yPx > startPx + sliceHeightPx) return;
+    const middlePx = fragment.yPx + fragment.heightPx / 2;
+    if (middlePx < startPx || middlePx >= startPx + sliceHeightPx) return;
 
     const localYPx = fragment.yPx - startPx;
     const xMm = margins.left + fragment.xPx * mmPerPx;
     const yMm = margins.top + (localYPx + fragment.fontSizePx * 0.82) * mmPerPx;
-    const maxWidthMm = Math.max(10, fragment.widthPx * mmPerPx);
     const fontSizePt = fragment.fontSizePx * mmPerPx * 72 / 25.4;
 
     pdf.setFont("helvetica", fragment.bold ? "bold" : "normal");
     pdf.setFontSize(fontSizePt);
     pdf.setTextColor(0, 0, 0);
-    pdf.text(fragment.text, xMm, yMm, { maxWidth: maxWidthMm });
+    pdf.text(fragment.text, xMm, yMm, { renderingMode: "invisible" });
   });
 }
 

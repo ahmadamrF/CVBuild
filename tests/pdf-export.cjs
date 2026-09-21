@@ -28,7 +28,18 @@ const { chromium } = require('playwright');
       }));
       state.skills = ['Python', 'SQL', 'FINAL_CONTENT_MARKER'];
       renderPreview();
-      window.jspdf.jsPDF.prototype.save = function () {};
+      const originalPaginate = paginatePdfSurface;
+      paginatePdfSurface = (...args) => {
+        const slices = originalPaginate(...args);
+        const fragments = args[1];
+        for (const slice of slices.slice(0, -1)) {
+          const end = slice.startPx + slice.sliceHeightPx;
+          if (fragments.some(f => f.yPx < end && f.yPx + f.heightPx > end)) {
+            throw new Error('Page boundary cuts a rendered text line');
+          }
+        }
+        return slices;
+      };
       // jsPDF installs methods on each instance, so wrap its constructor.
       const Original = window.jspdf.jsPDF;
       window.jspdf.jsPDF = function (...args) {
@@ -44,10 +55,13 @@ const { chromium } = require('playwright');
       if (!window.testPdf) throw new Error('Export failed');
       const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(window.testPdf), disableWorker: true }).promise;
       let text = '';
+      const pageTexts = [];
       for (let i = 1; i <= pdf.numPages; i++) {
-        text += (await (await pdf.getPage(i)).getTextContent()).items.map(item => item.str).join(' ');
+        const pageText = (await (await pdf.getPage(i)).getTextContent()).items.map(item => item.str).join(' ');
+        pageTexts.push(pageText);
+        text += pageText;
       }
-      return { pages: pdf.numPages, text, bytes: window.testPdf, leftover: document.querySelectorAll('.pdf-export-mode').length, disabled: dom.exportPdfBtn.disabled };
+      return { pages: pdf.numPages, text, pageTexts, bytes: window.testPdf, leftover: document.querySelectorAll('.pdf-export-mode').length, disabled: dom.exportPdfBtn.disabled };
     }, mode);
     const one = await exportAndRead('one-page');
     assert.equal(one.pages, 1);
@@ -60,6 +74,31 @@ const { chromium } = require('playwright');
     const normal = await exportAndRead('normal');
     assert.ok(normal.pages > 1);
     assert.match(normal.text, /FINAL_CONTENT_MARKER/);
+    await fs.writeFile(path.join(root, 'tmp/pdfs/long-normal.pdf'), Buffer.from(normal.bytes));
+    for (let i = 0; i < 8; i++) {
+      const entryPage = normal.pageTexts.find(text => text.includes(`Backend Engineer ${i}`));
+      assert.ok(entryPage.includes(`project ${i}-4`), 'Entry stays with its final bullet');
+      for (let j = 0; j < 5; j++) {
+        assert.equal(normal.text.split(`project ${i}-${j}`).length - 1, 1, 'Each bullet appears exactly once');
+      }
+    }
+    await page.evaluate(() => {
+      state.experience = [{ id: 'oversized', title: 'Oversized entry', company: 'Example', date: '2026',
+        description: Array.from({ length: 70 }, (_, i) => `- UNIQUE_${i}_END: A longer bullet that should wrap over multiple lines while preserving all of its content and keeping every rendered line intact at page boundaries.`).join('\n') }];
+      renderPreview();
+    });
+    const oversized = await exportAndRead('normal');
+    assert.ok(oversized.pages > 1);
+    for (let i = 0; i < 70; i++) {
+      assert.equal(oversized.text.split(`UNIQUE_${i}_END`).length - 1, 1);
+    }
+    await page.evaluate(() => {
+      state.design.template = 'split';
+      renderPreview();
+    });
+    const split = await exportAndRead('normal');
+    assert.match(split.text, /FINAL_CONTENT_MARKER/);
+    await page.evaluate(() => { state.design.template = 'modern'; renderPreview(); });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.evaluate(() => dom.previewPanel.classList.add('is-collapsed'));
     const mobile = await exportAndRead('one-page');
@@ -74,7 +113,7 @@ const { chromium } = require('playwright');
     });
     assert.equal(await page.locator('.pdf-export-mode').count(), 0);
     assert.equal(await page.locator('#exportPdfBtn').isDisabled(), false);
-    console.log(`PASS: long CV one page, all content preserved; normal ${normal.pages} pages; collapsed mobile; short CV; failure cleanup.`);
+    console.log(`PASS: long CV one page, all content preserved; normal ${normal.pages} pages; entries and lines intact; oversized entry; split template; collapsed mobile; short CV; failure cleanup.`);
   } finally {
     await browser.close();
     server.close();
