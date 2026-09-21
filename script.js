@@ -100,8 +100,6 @@ const dom = {
   fabMenu: document.getElementById("fabMenu")
 };
 
-init();
-
 function init() {
   applySharedStateFromUrlIfPresent();
   recoverSectionsIfStateLooksBroken();
@@ -2471,15 +2469,5 @@ function escapeAttr(value) {
   return escapeHtml(value).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
+// Start only after constants used by the initial preview (including contact icons) exist.
+init();

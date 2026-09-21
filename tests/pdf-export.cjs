@@ -20,6 +20,26 @@ const { chromium } = require('playwright');
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
     await page.goto(`http://127.0.0.1:${server.address().port}`, { waitUntil: 'networkidle' });
+    const startupErrors = [];
+    page.on('pageerror', error => startupErrors.push(error.message));
+    await page.evaluate(() => {
+      const saved = getDefaultState();
+      Object.assign(saved, { email: 'test@example.com', mobile: '+201012345678',
+        location: 'Cairo, Egypt', linkedin: 'https://www.linkedin.com/in/example',
+        github: 'https://github.com/example' });
+      saved.design.template = 'minimal';
+      saved.design.atsMode = true;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+    });
+    for (let reload = 0; reload < 3; reload++) {
+      await page.reload({ waitUntil: 'networkidle' });
+      assert.deepEqual(startupErrors, [], 'Saved contacts must not crash startup');
+      assert.equal(await page.locator('#cvPreview > section').count(), 9);
+      assert.equal(await page.locator('#cvPreview .cv-link-icon svg').count(), 5);
+      assert.match(await page.locator('#cvPreview').innerText(), /Responsive Design/);
+      await page.locator('#fullNameInput').fill(`Reload check ${reload}`);
+      assert.equal(await page.locator('#cvPreview .cv-name').innerText(), `Reload check ${reload}`);
+    }
     await page.evaluate(() => {
       state = getDefaultState();
       state.experience = Array.from({ length: 8 }, (_, i) => ({
@@ -113,7 +133,7 @@ const { chromium } = require('playwright');
     });
     assert.equal(await page.locator('.pdf-export-mode').count(), 0);
     assert.equal(await page.locator('#exportPdfBtn').isDisabled(), false);
-    console.log(`PASS: long CV one page, all content preserved; normal ${normal.pages} pages; entries and lines intact; oversized entry; split template; collapsed mobile; short CV; failure cleanup.`);
+    console.log(`PASS: saved-contact refresh and editing; long CV one page, all content preserved; normal ${normal.pages} pages; entries and lines intact; oversized entry; split template; collapsed mobile; short CV; failure cleanup.`);
   } finally {
     await browser.close();
     server.close();
