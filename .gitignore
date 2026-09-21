@@ -1,0 +1,4 @@
+# Local PDF exports and verification artifacts may contain personal CV data.
+/output/
+/tmp/
+/node_modules/

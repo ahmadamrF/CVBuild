@@ -1671,24 +1671,40 @@ async function exportPdf() {
     ? { top: 4, right: 4, bottom: 4, left: 4 }
     : { top: 10, right: 10, bottom: 10, left: 10 };
 
-  dom.cvPreview.classList.add("pdf-export-mode");
-  dom.cvPreview.classList.toggle("pdf-export-one-page", isOnePage);
+  // Export independently of the preview's viewport width or collapsed state.
+  const exportSurface = dom.cvPreview.cloneNode(true);
+  exportSurface.removeAttribute("id");
+  exportSurface.classList.add("pdf-export-mode");
+  exportSurface.classList.toggle("pdf-export-one-page", isOnePage);
+  Object.assign(exportSurface.style, {
+    position: "absolute", left: "-10000px", top: "0",
+    width: "794px", maxWidth: "none", height: "auto", maxHeight: "none",
+    margin: "0", overflow: "visible"
+  });
+  document.body.appendChild(exportSurface);
+  dom.exportPdfBtn.disabled = true;
 
   try {
+    await document.fonts.ready;
     await new Promise((resolve) => requestAnimationFrame(resolve));
     await exportSearchablePdf({
-      element: dom.cvPreview,
+      element: exportSurface,
       fileName,
       margins,
+      onePage: isOnePage,
       canvasScale: isOnePage ? 1.7 : 2
     });
     setStatus(isOnePage ? "One-page PDF exported." : "PDF exported.");
+  } catch (error) {
+    console.error("PDF export failed:", error);
+    setStatus("PDF export failed. Please try again.");
   } finally {
-    dom.cvPreview.classList.remove("pdf-export-mode", "pdf-export-one-page");
+    exportSurface.remove();
+    dom.exportPdfBtn.disabled = false;
   }
 }
 
-async function exportSearchablePdf({ element, fileName, margins, canvasScale }) {
+async function exportSearchablePdf({ element, fileName, margins, canvasScale, onePage = false }) {
   const html2canvasLib = window.html2canvas || (typeof html2canvas !== "undefined" ? html2canvas : null);
   const jsPdfLib = window.jspdf?.jsPDF || window.jsPDF || null;
   if (!html2canvasLib || !jsPdfLib) {
@@ -1708,38 +1724,46 @@ async function exportSearchablePdf({ element, fileName, margins, canvasScale }) 
   const pageHeightMm = pdf.internal.pageSize.getHeight();
   const contentWidthMm = pageWidthMm - margins.left - margins.right;
   const contentHeightMm = pageHeightMm - margins.top - margins.bottom;
-  const mmPerPx = contentWidthMm / surfaceRect.width;
+  // Fit BOTH dimensions in one-page mode; smaller typography alone cannot
+  // guarantee that arbitrary CV content fits on a single sheet.
+  const mmPerPx = onePage
+    ? Math.min(contentWidthMm / surfaceRect.width, contentHeightMm / surfaceRect.height)
+    : contentWidthMm / surfaceRect.width;
   const pageHeightPx = contentHeightMm / mmPerPx;
-  const totalPages = Math.max(1, Math.ceil(surfaceRect.height / pageHeightPx));
-  const canvasPageHeightPx = pageHeightPx * canvasScale;
+  const totalPages = onePage ? 1 : Math.max(1, Math.ceil(surfaceRect.height / pageHeightPx));
+  const imageWidthMm = surfaceRect.width * mmPerPx;
+  const pageMargins = { ...margins, left: margins.left + (contentWidthMm - imageWidthMm) / 2 };
+  const canvasPixelsPerCssPixel = fullCanvas.height / surfaceRect.height;
 
   for (let pageIndex = 0; pageIndex < totalPages; pageIndex += 1) {
     if (pageIndex > 0) pdf.addPage();
     const startPx = pageIndex * pageHeightPx;
     const remainingPx = Math.max(0, surfaceRect.height - startPx);
-    const sliceHeightPx = Math.min(pageHeightPx, remainingPx);
+    const sliceHeightPx = onePage ? surfaceRect.height : Math.min(pageHeightPx, remainingPx);
 
     // Write selectable text first, then draw the visual image above it.
     // This keeps the appearance identical while preserving text extraction/search.
     renderPdfTextLayer(pdf, fragments, {
       startPx,
       sliceHeightPx,
-      margins,
+      margins: pageMargins,
       mmPerPx
     });
 
     const pageCanvas = document.createElement("canvas");
     pageCanvas.width = fullCanvas.width;
-    pageCanvas.height = Math.max(1, Math.round(sliceHeightPx * canvasScale));
+    const sourceTop = Math.round(startPx * canvasPixelsPerCssPixel);
+    const sourceBottom = Math.min(fullCanvas.height, Math.round((startPx + sliceHeightPx) * canvasPixelsPerCssPixel));
+    pageCanvas.height = Math.max(1, sourceBottom - sourceTop);
     const ctx = pageCanvas.getContext("2d");
     if (!ctx) throw new Error("Could not create canvas context for PDF export.");
 
     ctx.drawImage(
       fullCanvas,
       0,
-      Math.round(startPx * canvasScale),
+      sourceTop,
       fullCanvas.width,
-      Math.round(sliceHeightPx * canvasScale),
+      pageCanvas.height,
       0,
       0,
       pageCanvas.width,
@@ -1750,9 +1774,9 @@ async function exportSearchablePdf({ element, fileName, margins, canvasScale }) 
     pdf.addImage(
       pageCanvas.toDataURL("image/jpeg", 0.98),
       "JPEG",
-      margins.left,
+      pageMargins.left,
       margins.top,
-      contentWidthMm,
+      imageWidthMm,
       imgHeightMm,
       undefined,
       "FAST"
@@ -1817,7 +1841,7 @@ function renderPdfTextLayer(pdf, fragments, { startPx, sliceHeightPx, margins, m
     const xMm = margins.left + fragment.xPx * mmPerPx;
     const yMm = margins.top + (localYPx + fragment.fontSizePx * 0.82) * mmPerPx;
     const maxWidthMm = Math.max(10, fragment.widthPx * mmPerPx);
-    const fontSizePt = Math.max(7, fragment.fontSizePx * 0.75);
+    const fontSizePt = fragment.fontSizePx * mmPerPx * 72 / 25.4;
 
     pdf.setFont("helvetica", fragment.bold ? "bold" : "normal");
     pdf.setFontSize(fontSizePt);
@@ -2381,7 +2405,6 @@ function escapeHtml(value) {
 function escapeAttr(value) {
   return escapeHtml(value).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
-
 
 
 
